@@ -1,0 +1,29 @@
+@import 'tailwindcss' source(none);
+@source '../**/*.{js,ts,jsx,tsx}';
+
+@import 'tw-animate-css';
+
+/* Aurora background — CSS variable aliases for Tailwind v4 color tokens */
+:root {
+  --white: #ffffff;
+  --black: #000000;
+  --transparent: transparent;
+  --emerald-300: var(--color-emerald-300);
+  --emerald-400: var(--color-emerald-400);
+  --emerald-500: var(--color-emerald-500);
+  --green-300: var(--color-green-300);
+  --teal-200: var(--color-teal-200);
+}
+
+@keyframes aurora {
+  from {
+    background-position: 50% 50%, 50% 50%;
+  }
+  to {
+    background-position: 350% 50%, 350% 50%;
+  }
+}
+
+@utility animate-aurora {
+  animation: aurora 60s linear infinite;
+}
