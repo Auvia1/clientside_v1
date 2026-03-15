@@ -593,7 +593,7 @@ import {
 } from "react-icons/fi";
 import { useClinicSchedule, usePatientSearch } from "../hooks/useSchedule";
 
-const CLINIC_ID = "1";
+const CLINIC_ID = "433e6186-e408-4b01-bcad-1fa449b41d63";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

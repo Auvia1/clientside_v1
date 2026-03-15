@@ -72,7 +72,7 @@
 // lib/api.js — centralized API client
 
 const BASE_URL = "/api";
-export const CLINIC_ID = "1";
+export const CLINIC_ID = "433e6186-e408-4b01-bcad-1fa449b41d63";
 
 async function request(path, options = {}) {
   const res = await fetch(`${BASE_URL}${path}`, {
