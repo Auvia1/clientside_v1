@@ -22,6 +22,8 @@
 // } from "react-icons/fi";
 // import { useClinicSchedule, usePatientSearch } from "../hooks/useSchedule";
 
+// const CLINIC_ID = "433e6186-e408-4b01-bcad-1fa449b41d63";
+
 // // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 // /** "HH:MM:SS" → "09:00 AM" */
@@ -115,22 +117,23 @@
 
 // // ─── useLiveActivity hook ─────────────────────────────────────────────────────
 
-// function useLiveActivity() {
+// function useLiveActivity(clinic_id) {
 //   const [activities, setActivities] = useState([]);
 //   const [wsStatus, setWsStatus]     = useState("connecting");
 //   const wsRef                       = useRef(null);
 //   const reconnectTimer              = useRef(null);
 
 //   function connect() {
-//     fetch("/api/activity?limit=10")
+//     if (!clinic_id) return;
+
+//     fetch(`/api/activity?limit=10&clinic_id=${clinic_id}`)
 //       .then((r) => r.json())
 //       .then((json) => { if (json.success) setActivities(json.data); })
 //       .catch(() => {});
 
 //     const proto = window.location.protocol === "https:" ? "wss" : "ws";
-//     // CORRECT
 //     const backendHost = process.env.NEXT_PUBLIC_BACKEND_WS_HOST;
-// const ws = new WebSocket(`${proto}://${backendHost}/ws/activity`);
+//     const ws = new WebSocket(`${proto}://${backendHost}/ws/activity`);
 //     wsRef.current = ws;
 
 //     ws.onopen = () => {
@@ -153,12 +156,13 @@
 //   }
 
 //   useEffect(() => {
+//     if (!clinic_id) return;
 //     connect();
 //     return () => {
 //       clearTimeout(reconnectTimer.current);
 //       wsRef.current?.close();
 //     };
-//   }, []);
+//   }, [clinic_id]);
 
 //   return { activities, wsStatus };
 // }
@@ -214,8 +218,8 @@
 
 // // ─── PatientLookup ────────────────────────────────────────────────────────────
 
-// function PatientLookup() {
-//   const { query, setQuery, results, loading, error } = usePatientSearch();
+// function PatientLookup({ clinic_id }) {
+//   const { query, setQuery, results, loading, error } = usePatientSearch(clinic_id);
 
 //   return (
 //     <Card className="border-slate-100 shadow-sm">
@@ -305,7 +309,7 @@
 //     useClinicSchedule(selectedDate);
 
 //   // ── LIVE activity feed ──
-//   const { activities, wsStatus } = useLiveActivity();
+//   const { activities, wsStatus } = useLiveActivity(CLINIC_ID);
 
 //   const formattedDate = useMemo(() => {
 //     const date = new Date(`${selectedDate}T00:00:00`);
@@ -522,7 +526,7 @@
 //             {/* ── Right Column ── */}
 //             <div className="flex flex-col gap-6">
 //               {/* ── LIVE: Patient Lookup ── */}
-//               <PatientLookup />
+//               <PatientLookup clinic_id={CLINIC_ID} />
 
 //               {/* ── LIVE: Activity Feed ── */}
 //               <Card className="border-slate-100 shadow-sm">
@@ -581,32 +585,22 @@ import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { Input } from "../components/ui/input";
 import {
-  FiChevronLeft,
-  FiChevronRight,
-  FiSearch,
-  FiCalendar,
-  FiX,
-  FiRefreshCw,
-  FiAlertCircle,
-  FiLoader,
-  FiActivity,
+  FiChevronLeft, FiChevronRight, FiSearch, FiCalendar,
+  FiX, FiRefreshCw, FiAlertCircle, FiLoader, FiActivity,
 } from "react-icons/fi";
 import { useClinicSchedule, usePatientSearch } from "../hooks/useSchedule";
-
-const CLINIC_ID = "433e6186-e408-4b01-bcad-1fa449b41d63";
+import { CLINIC_ID } from "../lib/api";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** "HH:MM:SS" → "09:00 AM" */
 function formatTimeLabel(timeStr) {
   if (!timeStr) return "";
   const [h, m] = timeStr.split(":").map(Number);
   const period = h < 12 ? "AM" : "PM";
-  const hour = h % 12 || 12;
+  const hour   = h % 12 || 12;
   return `${String(hour).padStart(2, "0")}:${String(m).padStart(2, "0")} ${period}`;
 }
 
-/** "09:00 AM" → "09:00:00" (for matching against DB time) */
 function labelToDbTime(label) {
   const [timePart, period] = label.split(" ");
   let [h, m] = timePart.split(":").map(Number);
@@ -617,10 +611,11 @@ function labelToDbTime(label) {
 
 function statusVariant(status) {
   const map = {
-    booked: "info",
-    completed: "success",
-    cancelled: "destructive",
-    no_show: "warning",
+    confirmed:   "info",
+    pending:     "warning",
+    completed:   "success",
+    cancelled:   "destructive",
+    no_show:     "warning",
     rescheduled: "muted",
   };
   return map[status?.toLowerCase()] || "muted";
@@ -628,26 +623,20 @@ function statusVariant(status) {
 
 function statusLabel(status) {
   const map = {
-    booked: "Confirmed",
-    completed: "Completed",
-    cancelled: "Cancelled",
-    no_show: "No Show",
+    confirmed:   "Confirmed",
+    pending:     "Pending",
+    completed:   "Completed",
+    cancelled:   "Cancelled",
+    no_show:     "No Show",
     rescheduled: "Rescheduled",
   };
   return map[status] || status;
 }
 
-/** Get initials from full name */
 function initials(name = "") {
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
+  return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 }
 
-/** Relative time from ISO date */
 function relativeDate(dateStr) {
   if (!dateStr) return "No visits yet";
   const diff = Math.floor(
@@ -655,71 +644,75 @@ function relativeDate(dateStr) {
   );
   if (diff === 0) return "Today";
   if (diff === 1) return "Yesterday";
-  if (diff < 30) return `${diff} days ago`;
+  if (diff < 30)  return `${diff} days ago`;
   return new Date(dateStr).toLocaleDateString("en-IN", { month: "short", day: "numeric" });
 }
 
-/** Relative time from createdAt timestamp */
 function activityAge(createdAt) {
   const mins = Math.floor((Date.now() - new Date(createdAt).getTime()) / 60_000);
-  if (mins < 1) return "just now";
+  if (mins < 1)  return "just now";
   if (mins < 60) return `${mins}m ago`;
   return `${Math.floor(mins / 60)}h ago`;
 }
 
-/** Dot color per event type */
 function activityDot(type) {
-  return (
-    {
-      agent_booking:  "bg-emerald-400",
-      manual_booking: "bg-sky-400",
-      active_call:    "bg-amber-400 animate-pulse",
-      cancellation:   "bg-red-400",
-      reschedule:     "bg-violet-400",
-    }[type] || "bg-slate-300"
-  );
+  return {
+    agent_booking:  "bg-emerald-400",
+    manual_booking: "bg-sky-400",
+    active_call:    "bg-amber-400 animate-pulse",
+    cancellation:   "bg-red-400",
+    reschedule:     "bg-violet-400",
+  }[type] || "bg-slate-300";
 }
 
-// Fixed time slots shown on the grid (every hour 08:00–15:00)
 const TIME_SLOTS = [
   "08:00 AM", "09:00 AM", "10:00 AM", "11:00 AM",
   "12:00 PM", "01:00 PM", "02:00 PM", "03:00 PM",
 ];
 
-// ─── useLiveActivity hook ─────────────────────────────────────────────────────
+// ─── useLiveActivity ──────────────────────────────────────────────────────────
 
-function useLiveActivity(clinic_id) {
+function useLiveActivity() {
   const [activities, setActivities] = useState([]);
   const [wsStatus, setWsStatus]     = useState("connecting");
   const wsRef                       = useRef(null);
   const reconnectTimer              = useRef(null);
+  const mountedRef                  = useRef(true);
 
   function connect() {
-    if (!clinic_id) return;
+    if (!mountedRef.current) return;
 
-    fetch(`/api/activity?limit=10&clinic_id=${clinic_id}`)
+    fetch(`/api/activity?limit=10&clinic_id=${CLINIC_ID}`)
       .then((r) => r.json())
-      .then((json) => { if (json.success) setActivities(json.data); })
+      .then((json) => { if (json.success && mountedRef.current) setActivities(json.data); })
       .catch(() => {});
 
-    const proto = window.location.protocol === "https:" ? "wss" : "ws";
     const backendHost = process.env.NEXT_PUBLIC_BACKEND_WS_HOST;
-    const ws = new WebSocket(`${proto}://${backendHost}/ws/activity`);
+    if (!backendHost) {
+      console.warn("NEXT_PUBLIC_BACKEND_WS_HOST is not set — live activity disabled");
+      setWsStatus("closed");
+      return;
+    }
+
+    const proto = window.location.protocol === "https:" ? "wss" : "ws";
+    const ws    = new WebSocket(`${proto}://${backendHost}/ws/activity`);
     wsRef.current = ws;
 
     ws.onopen = () => {
+      if (!mountedRef.current) { ws.close(); return; }
       setWsStatus("open");
       clearTimeout(reconnectTimer.current);
     };
     ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
-        if (msg.type === "activity") {
+        if (msg.type === "activity" && mountedRef.current) {
           setActivities((prev) => [msg.data, ...prev].slice(0, 20));
         }
       } catch (_) {}
     };
     ws.onclose = () => {
+      if (!mountedRef.current) return;
       setWsStatus("closed");
       reconnectTimer.current = setTimeout(connect, 5000);
     };
@@ -727,13 +720,14 @@ function useLiveActivity(clinic_id) {
   }
 
   useEffect(() => {
-    if (!clinic_id) return;
+    mountedRef.current = true;
     connect();
     return () => {
+      mountedRef.current = false;
       clearTimeout(reconnectTimer.current);
       wsRef.current?.close();
     };
-  }, [clinic_id]);
+  }, []);
 
   return { activities, wsStatus };
 }
@@ -748,6 +742,8 @@ function AppointmentCell({ appt, onStatusChange }) {
     try { await onStatusChange(appt.id, newStatus); }
     finally { setUpdating(false); }
   }
+
+  const isActionable = appt.status === "confirmed" || appt.status === "pending";
 
   return (
     <div className="h-full rounded-xl border border-slate-200 bg-white p-3 transition-transform duration-200 hover:-translate-y-0.5 hover:shadow">
@@ -765,7 +761,7 @@ function AppointmentCell({ appt, onStatusChange }) {
           <FiCalendar className="shrink-0" />
           <span>{formatTimeLabel(appt.start_time)} – {formatTimeLabel(appt.end_time)}</span>
         </div>
-        {appt.status === "booked" && !updating && (
+        {isActionable && !updating && (
           <div className="flex gap-1">
             <button
               title="Mark Completed"
@@ -779,9 +775,7 @@ function AppointmentCell({ appt, onStatusChange }) {
             >✕</button>
           </div>
         )}
-        {updating && (
-          <FiLoader className="h-3 w-3 animate-spin text-slate-400" />
-        )}
+        {updating && <FiLoader className="h-3 w-3 animate-spin text-slate-400" />}
       </div>
     </div>
   );
@@ -789,8 +783,8 @@ function AppointmentCell({ appt, onStatusChange }) {
 
 // ─── PatientLookup ────────────────────────────────────────────────────────────
 
-function PatientLookup({ clinic_id }) {
-  const { query, setQuery, results, loading, error } = usePatientSearch(clinic_id);
+function PatientLookup() {
+  const { query, setQuery, results, loading, error } = usePatientSearch();
 
   return (
     <Card className="border-slate-100 shadow-sm">
@@ -821,9 +815,12 @@ function PatientLookup({ clinic_id }) {
           {results.length === 0 && query.trim() && !loading ? (
             <p className="text-xs text-slate-400 text-center py-4">No patients found.</p>
           ) : results.length === 0 && !query.trim() ? (
-            [{name: "Jayanth Rao", meta: "Last visit: 2 days ago"},
-             {name: "Saranya Krishnan", meta: "New Patient"}].map((p) => (
-              <div key={p.name}
+            [
+              { name: "Jayanth Rao",      meta: "Last visit: 2 days ago" },
+              { name: "Saranya Krishnan", meta: "New Patient"             },
+            ].map((p) => (
+              <div
+                key={p.name}
                 className="flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2 transition-transform duration-200 hover:-translate-y-0.5 hover:shadow"
               >
                 <div className="grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600">
@@ -870,17 +867,15 @@ function PatientLookup({ clinic_id }) {
 
 export default function SchedulePage() {
   const [activeMonitoring, setActiveMonitoring] = useState(true);
-  const [doctorFilter, setDoctorFilter] = useState("all");
-  const [selectedDate, setSelectedDate] = useState(
+  const [doctorFilter, setDoctorFilter]         = useState("all");
+  const [selectedDate, setSelectedDate]         = useState(
     () => new Date().toISOString().slice(0, 10)
   );
 
-  // ── LIVE from API ──
   const { doctors, appointmentMap, loading, error, refresh, updateStatus } =
     useClinicSchedule(selectedDate);
 
-  // ── LIVE activity feed ──
-  const { activities, wsStatus } = useLiveActivity(CLINIC_ID);
+  const { activities, wsStatus } = useLiveActivity();
 
   const formattedDate = useMemo(() => {
     const date = new Date(`${selectedDate}T00:00:00`);
@@ -903,13 +898,14 @@ export default function SchedulePage() {
   }, [doctors, doctorFilter]);
 
   function getAppointment(doctorId, slotLabel) {
-    const dbTime = labelToDbTime(slotLabel);
+    const dbTime     = labelToDbTime(slotLabel);
     const doctorAppts = appointmentMap[doctorId] || {};
+    // Exact match first
     if (doctorAppts[dbTime]) return doctorAppts[dbTime];
+    // Hour-level fallback
     const slotHour = parseInt(dbTime.split(":")[0]);
     for (const [timeKey, appt] of Object.entries(doctorAppts)) {
-      const apptHour = parseInt(timeKey.split(":")[0]);
-      if (apptHour === slotHour) return appt;
+      if (parseInt(timeKey.split(":")[0]) === slotHour) return appt;
     }
     return null;
   }
@@ -987,7 +983,8 @@ export default function SchedulePage() {
           )}
 
           <div className="grid gap-6 lg:grid-cols-[2.2fr_1fr]">
-            {/* ── LIVE: Schedule Grid ── */}
+
+            {/* ── Schedule Grid ── */}
             <Card className="border-slate-100 shadow-sm overflow-x-auto">
               <CardHeader className="pb-2">
                 <div className="flex flex-wrap items-center gap-2 mb-4">
@@ -1079,10 +1076,7 @@ export default function SchedulePage() {
                               className="min-h-[70px] rounded-xl border border-slate-100 bg-white/60"
                             >
                               {appt ? (
-                                <AppointmentCell
-                                  appt={appt}
-                                  onStatusChange={updateStatus}
-                                />
+                                <AppointmentCell appt={appt} onStatusChange={updateStatus} />
                               ) : null}
                             </div>
                           );
@@ -1096,10 +1090,9 @@ export default function SchedulePage() {
 
             {/* ── Right Column ── */}
             <div className="flex flex-col gap-6">
-              {/* ── LIVE: Patient Lookup ── */}
-              <PatientLookup clinic_id={CLINIC_ID} />
+              <PatientLookup />
 
-              {/* ── LIVE: Activity Feed ── */}
+              {/* ── Live Activity ── */}
               <Card className="border-slate-100 shadow-sm">
                 <CardHeader className="flex flex-row items-center justify-between">
                   <div className="flex items-center gap-2">

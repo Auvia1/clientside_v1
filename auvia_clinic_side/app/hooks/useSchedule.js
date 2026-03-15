@@ -1,3 +1,4 @@
+
 // "use client";
 // // hooks/useSchedule.js
 
@@ -91,12 +92,10 @@
 //       setAppointments(apptData);
 
 //       // Build lookup: appointmentMap[doctorId][timeSlot] = appointment
-//       // timeSlot = "HH:00" normalized to nearest hour for grid matching
 //       const map = {};
 //       for (const appt of apptData) {
 //         const dId = appt.doctor_id;
 //         if (!map[dId]) map[dId] = {};
-//         // Use exact start_time as key so we can match against time slots
 //         map[dId][appt.start_time] = appt;
 //       }
 //       setAppointmentMap(map);
@@ -178,7 +177,6 @@
 //   const [error, setError] = useState(null);
 
 //   useEffect(() => {
-//     // Show empty results if query is blank
 //     if (!query.trim()) {
 //       setResults([]);
 //       return;
@@ -196,7 +194,7 @@
 //       } finally {
 //         setLoading(false);
 //       }
-//     }, 300); // 300ms debounce
+//     }, 300);
 
 //     return () => clearTimeout(timer);
 //   }, [query]);
@@ -210,16 +208,45 @@
 import { useState, useEffect, useCallback } from "react";
 import { appointmentsApi, doctorsApi, patientsApi } from "../lib/api";
 
+// ─── helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * The backend returns appointment_start / appointment_end as TIMESTAMPTZ.
+ * Extract "HH:MM:SS" in IST for the grid / row display.
+ */
+function extractTime(isoString) {
+  if (!isoString) return "";
+  const date = new Date(isoString);
+  return date.toLocaleTimeString("en-IN", {
+    hour:     "2-digit",
+    minute:   "2-digit",
+    second:   "2-digit",
+    hour12:   false,
+    timeZone: "Asia/Kolkata",
+  });
+}
+
+/**
+ * Normalise a raw appointment row so the rest of the frontend can use
+ * start_time / end_time as plain "HH:MM:SS" strings.
+ */
+function normaliseAppointment(appt) {
+  return {
+    ...appt,
+    start_time: extractTime(appt.appointment_start),
+    end_time:   extractTime(appt.appointment_end),
+  };
+}
+
 // ─── useSchedule ─────────────────────────────────────────────────────────────
-// Fetches today's (or any date's) full schedule + stats. Auto-refreshes every 30s.
 
 export function useSchedule(date) {
   const today = date || new Date().toISOString().split("T")[0];
 
-  const [schedule, setSchedule] = useState([]);
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [schedule, setSchedule]       = useState([]);
+  const [stats, setStats]             = useState(null);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState(null);
   const [lastRefresh, setLastRefresh] = useState(null);
 
   const fetchData = useCallback(async () => {
@@ -229,7 +256,7 @@ export function useSchedule(date) {
         appointmentsApi.getSchedule(today),
         appointmentsApi.getStats(today),
       ]);
-      setSchedule(scheduleData);
+      setSchedule(scheduleData.map(normaliseAppointment));
       setStats(statsData);
       setLastRefresh(new Date());
     } catch (err) {
@@ -274,15 +301,13 @@ export function useSchedule(date) {
 }
 
 // ─── useClinicSchedule ────────────────────────────────────────────────────────
-// For the Schedule page — fetches doctors + appointments for a given date,
-// organises appointments into a { doctorId -> { timeSlot -> appointment } } map.
 
 export function useClinicSchedule(date) {
-  const [doctors, setDoctors] = useState([]);
-  const [appointments, setAppointments] = useState([]);
+  const [doctors, setDoctors]               = useState([]);
+  const [appointments, setAppointments]     = useState([]);
   const [appointmentMap, setAppointmentMap] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [loading, setLoading]               = useState(true);
+  const [error, setError]                   = useState(null);
 
   const fetchData = useCallback(async () => {
     if (!date) return;
@@ -293,12 +318,13 @@ export function useClinicSchedule(date) {
         appointmentsApi.getSchedule(date),
       ]);
 
+      const normalised = apptData.map(normaliseAppointment);
       setDoctors(doctorData);
-      setAppointments(apptData);
+      setAppointments(normalised);
 
-      // Build lookup: appointmentMap[doctorId][timeSlot] = appointment
+      // appointmentMap[doctorId][start_time] = appointment
       const map = {};
-      for (const appt of apptData) {
+      for (const appt of normalised) {
         const dId = appt.doctor_id;
         if (!map[dId]) map[dId] = {};
         map[dId][appt.start_time] = appt;
@@ -340,7 +366,7 @@ export function useClinicSchedule(date) {
 export function useDoctors() {
   const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError]     = useState(null);
 
   useEffect(() => {
     doctorsApi
@@ -356,9 +382,9 @@ export function useDoctors() {
 // ─── useSlots ─────────────────────────────────────────────────────────────────
 
 export function useSlots(doctorId, date) {
-  const [slots, setSlots] = useState([]);
+  const [slots, setSlots]     = useState([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError]     = useState(null);
 
   useEffect(() => {
     if (!doctorId || !date) return;
@@ -376,10 +402,10 @@ export function useSlots(doctorId, date) {
 // ─── usePatientSearch ─────────────────────────────────────────────────────────
 
 export function usePatientSearch() {
-  const [query, setQuery] = useState("");
+  const [query, setQuery]     = useState("");
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError]     = useState(null);
 
   useEffect(() => {
     if (!query.trim()) {
