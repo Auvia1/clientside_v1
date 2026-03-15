@@ -502,7 +502,8 @@ import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { useSchedule } from "../hooks/useSchedule";
-import { useRouter } from "next/navigation";
+
+const CLINIC_ID = "1";
 
 // ─── Static Data (no API needed) ─────────────────────────────────────────────
 
@@ -677,19 +678,8 @@ export default function DashboardPage() {
   const [activeMonitoring, setActiveMonitoring] = useState(true);
   const [providerFilter, setProviderFilter] = useState("all");
   const [showAll, setShowAll] = useState(false);
-  const [clinicId, setClinicId] = useState(null);
 
-  const router = useRouter();
-
-  useEffect(() => {
-    const raw = localStorage.getItem("auvia_user");
-    if (!raw) { router.push("/"); return; }
-    const user = JSON.parse(raw);
-    if (!user?.clinic_id) { router.push("/"); return; }
-    setClinicId(user.clinic_id);
-  }, [router]);
-
-  const { activities, wsStatus } = useLiveActivity(clinicId);
+  const { activities, wsStatus } = useLiveActivity(CLINIC_ID);
 
   // ── LIVE from API ──────────────────────────────────────────────
   const { schedule, stats, loading, error, lastRefresh, refresh, updateAppointmentStatus } =

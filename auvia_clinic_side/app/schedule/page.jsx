@@ -592,7 +592,8 @@ import {
   FiActivity,
 } from "react-icons/fi";
 import { useClinicSchedule, usePatientSearch } from "../hooks/useSchedule";
-import { useRouter } from "next/navigation";
+
+const CLINIC_ID = "1";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -873,24 +874,13 @@ export default function SchedulePage() {
   const [selectedDate, setSelectedDate] = useState(
     () => new Date().toISOString().slice(0, 10)
   );
-  const [clinicId, setClinicId] = useState(null);
-
-  const router = useRouter();
-
-  useEffect(() => {
-    const raw = localStorage.getItem("auvia_user");
-    if (!raw) { router.push("/"); return; }
-    const user = JSON.parse(raw);
-    if (!user?.clinic_id) { router.push("/"); return; }
-    setClinicId(user.clinic_id);
-  }, [router]);
 
   // ── LIVE from API ──
   const { doctors, appointmentMap, loading, error, refresh, updateStatus } =
     useClinicSchedule(selectedDate);
 
   // ── LIVE activity feed ──
-  const { activities, wsStatus } = useLiveActivity(clinicId);
+  const { activities, wsStatus } = useLiveActivity(CLINIC_ID);
 
   const formattedDate = useMemo(() => {
     const date = new Date(`${selectedDate}T00:00:00`);
@@ -1107,7 +1097,7 @@ export default function SchedulePage() {
             {/* ── Right Column ── */}
             <div className="flex flex-col gap-6">
               {/* ── LIVE: Patient Lookup ── */}
-              <PatientLookup clinic_id={clinicId} />
+              <PatientLookup clinic_id={CLINIC_ID} />
 
               {/* ── LIVE: Activity Feed ── */}
               <Card className="border-slate-100 shadow-sm">
