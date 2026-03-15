@@ -1,6 +1,6 @@
 // lib/api.js — centralized API client
 
-const BASE_URL = "";
+const BASE_URL = "/api";
 
 async function request(path, options = {}) {
   const res = await fetch(`${BASE_URL}${path}`, {
