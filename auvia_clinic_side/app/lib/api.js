@@ -1,6 +1,6 @@
 // lib/api.js — centralized API client
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4002/api";
+const BASE_URL = "";
 
 async function request(path, options = {}) {
   const res = await fetch(`${BASE_URL}${path}`, {
