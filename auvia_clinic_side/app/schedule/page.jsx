@@ -129,8 +129,8 @@ function useLiveActivity() {
 
     const proto = window.location.protocol === "https:" ? "wss" : "ws";
     // CORRECT
-    const wsHost = process.env.NEXT_PUBLIC_BACKEND_HOST || "localhost:4002";
-    const ws = new WebSocket(`${proto}://${wsHost}/ws/activity`);
+    const backendHost = process.env.NEXT_PUBLIC_BACKEND_WS_HOST;
+const ws = new WebSocket(`${proto}://${backendHost}/ws/activity`);
     wsRef.current = ws;
 
     ws.onopen = () => {
