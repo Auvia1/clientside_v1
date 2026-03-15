@@ -127,7 +127,6 @@ const { createServer } = require("http");
 const { parse }        = require("url");
 const next             = require("next");
 const WebSocket        = require("ws");
-const crypto           = require("crypto");
 const http             = require("http");
 
 const dev    = process.env.NODE_ENV !== "production";
@@ -138,19 +137,22 @@ const BACKEND_HTTP = "http://10.0.11.76:4002";
 const BACKEND_WS   = "ws://10.0.11.76:4002";
 const PORT         = process.env.PORT || 3002;
 
+// A single wss instance used only for handleUpgrade
+const wss = new WebSocket.Server({ noServer: true });
+
 app.prepare().then(() => {
   const server = createServer((req, res) => {
     const parsedUrl = parse(req.url, true);
 
     if (parsedUrl.pathname.startsWith("/api/")) {
-      const targetUrl = `${BACKEND_HTTP}${req.url}`;
-      const proxyReq  = http.request(targetUrl, {
-        method:  req.method,
-        headers: { ...req.headers, host: "10.0.11.76:4002" },
-      }, (proxyRes) => {
-        res.writeHead(proxyRes.statusCode, proxyRes.headers);
-        proxyRes.pipe(res);
-      });
+      const proxyReq = http.request(
+        `${BACKEND_HTTP}${req.url}`,
+        { method: req.method, headers: { ...req.headers, host: "10.0.11.76:4002" } },
+        (proxyRes) => {
+          res.writeHead(proxyRes.statusCode, proxyRes.headers);
+          proxyRes.pipe(res);
+        }
+      );
       proxyReq.on("error", (err) => {
         console.error("[HTTP Proxy error]", err.message);
         if (!res.headersSent) {
@@ -165,32 +167,20 @@ app.prepare().then(() => {
   });
 
   server.on("upgrade", (req, socket, head) => {
-    const parsedUrl = parse(req.url, true);
+    const { pathname } = parse(req.url, true);
 
-    if (parsedUrl.pathname === "/ws/activity") {
+    if (pathname === "/ws/activity") {
       console.log("[WS] Browser connected, opening backend tunnel...");
 
-      const backendWs = new WebSocket(`${BACKEND_WS}/ws/activity`);
+      // Let wss handle the browser handshake completely
+      wss.handleUpgrade(req, socket, head, (browserWs) => {
+        console.log("[WS] Browser handshake done, connecting to backend...");
 
-      backendWs.on("open", () => {
-        console.log("[WS] Backend tunnel open — bridging browser ↔ backend");
+        const backendWs = new WebSocket(`${BACKEND_WS}/ws/activity`);
 
-        // Complete WebSocket handshake with the browser manually
-        const acceptKey = crypto
-          .createHash("sha1")
-          .update(req.headers["sec-websocket-key"] + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
-          .digest("base64");
+        backendWs.on("open", () => {
+          console.log("[WS] Backend tunnel open — bridging browser ↔ backend");
 
-        socket.write(
-          "HTTP/1.1 101 Switching Protocols\r\n" +
-          "Upgrade: websocket\r\n" +
-          "Connection: Upgrade\r\n" +
-          `Sec-WebSocket-Accept: ${acceptKey}\r\n\r\n`
-        );
-
-        // Use a wss server to wrap the raw socket into a WebSocket object
-        const wss = new WebSocket.Server({ noServer: true });
-        wss.handleUpgrade(req, socket, head, (browserWs) => {
           // Backend → Browser
           backendWs.on("message", (data, isBinary) => {
             if (browserWs.readyState === WebSocket.OPEN) {
@@ -204,25 +194,20 @@ app.prepare().then(() => {
               backendWs.send(data, { binary: isBinary });
             }
           });
-
-          browserWs.on("close", () => {
-            console.log("[WS] Browser disconnected");
-            backendWs.close();
-          });
-
-          backendWs.on("close", () => {
-            console.log("[WS] Backend tunnel closed");
-            if (browserWs.readyState === WebSocket.OPEN) browserWs.close();
-          });
-
-          browserWs.on("error", (e) => console.error("[WS] Browser error:", e.message));
-          backendWs.on("error", (e) => console.error("[WS] Backend error:", e.message));
         });
-      });
 
-      backendWs.on("error", (err) => {
-        console.error("[WS] Could not connect to backend:", err.message);
-        socket.destroy();
+        browserWs.on("close", () => {
+          console.log("[WS] Browser disconnected");
+          if (backendWs.readyState !== WebSocket.CLOSED) backendWs.close();
+        });
+
+        backendWs.on("close", () => {
+          console.log("[WS] Backend tunnel closed");
+          if (browserWs.readyState === WebSocket.OPEN) browserWs.close();
+        });
+
+        browserWs.on("error", (e) => console.error("[WS] Browser error:", e.message));
+        backendWs.on("error", (e) => console.error("[WS] Backend error:", e.message));
       });
 
     } else {
