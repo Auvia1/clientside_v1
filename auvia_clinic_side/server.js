@@ -43,14 +43,15 @@ app.prepare().then(() => {
     }
   });
 
-  // Proxy WebSocket upgrade requests to the backend
+  // Proxy WebSocket upgrade requests
   server.on("upgrade", (req, socket, head) => {
     const parsedUrl = parse(req.url, true);
     if (parsedUrl.pathname === "/ws/activity") {
       console.log("[WS Proxy] Upgrading connection to backend");
       proxy.ws(req, socket, head, { target: BACKEND_WS });
     } else {
-      socket.destroy();
+      // Let Next.js handle all other WS connections (HMR, etc.)
+      app.getUpgradeHandler()(req, socket, head);
     }
   });
 
