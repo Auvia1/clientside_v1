@@ -675,57 +675,71 @@ const TIME_SLOTS = [
 function useLiveActivity() {
   const [activities, setActivities] = useState([]);
   const [wsStatus, setWsStatus]     = useState("connecting");
-  const wsRef                       = useRef(null);
-  const reconnectTimer              = useRef(null);
-  const mountedRef                  = useRef(true);
+  const wsRef          = useRef(null);
+  const reconnectTimer = useRef(null);
+  const mountedRef     = useRef(false);
+  const retryCount     = useRef(0);
 
-  function connect() {
-    if (!mountedRef.current) return;
+  useEffect(() => {
+    mountedRef.current = true;
 
     fetch(`/api/activity?limit=10&clinic_id=${CLINIC_ID}`)
       .then((r) => r.json())
       .then((json) => { if (json.success && mountedRef.current) setActivities(json.data); })
       .catch(() => {});
 
-    const backendHost = process.env.NEXT_PUBLIC_BACKEND_WS_HOST;
-    if (!backendHost) {
-      console.warn("NEXT_PUBLIC_BACKEND_WS_HOST is not set — live activity disabled");
-      setWsStatus("closed");
-      return;
+    function connectWs() {
+      if (!mountedRef.current) return;
+
+      if (wsRef.current) {
+        wsRef.current.onclose = null;
+        wsRef.current.onerror = null;
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+
+      // Connect through the Next.js server (which proxies to private backend)
+      const proto = window.location.protocol === "https:" ? "wss" : "ws";
+      const ws    = new WebSocket(`${proto}://${window.location.host}/ws/activity`);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        if (!mountedRef.current) { ws.close(); return; }
+        setWsStatus("open");
+        retryCount.current = 0;
+        clearTimeout(reconnectTimer.current);
+      };
+      ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          if (msg.type === "activity" && mountedRef.current) {
+            setActivities((prev) => [msg.data, ...prev].slice(0, 20));
+          }
+        } catch (_) {}
+      };
+      const scheduleReconnect = () => {
+        if (!mountedRef.current) return;
+        setWsStatus("closed");
+        const delay = Math.min(3000 * Math.pow(2, retryCount.current), 30000);
+        retryCount.current += 1;
+        reconnectTimer.current = setTimeout(connectWs, delay);
+      };
+      ws.onclose = scheduleReconnect;
+      ws.onerror = () => { ws.onclose = null; ws.close(); scheduleReconnect(); };
     }
 
-    const proto = window.location.protocol === "https:" ? "wss" : "ws";
-    const ws    = new WebSocket(`${proto}://${backendHost}/ws/activity`);
-    wsRef.current = ws;
+    const initTimer = setTimeout(connectWs, 150);
 
-    ws.onopen = () => {
-      if (!mountedRef.current) { ws.close(); return; }
-      setWsStatus("open");
-      clearTimeout(reconnectTimer.current);
-    };
-    ws.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data);
-        if (msg.type === "activity" && mountedRef.current) {
-          setActivities((prev) => [msg.data, ...prev].slice(0, 20));
-        }
-      } catch (_) {}
-    };
-    ws.onclose = () => {
-      if (!mountedRef.current) return;
-      setWsStatus("closed");
-      reconnectTimer.current = setTimeout(connect, 5000);
-    };
-    ws.onerror = () => ws.close();
-  }
-
-  useEffect(() => {
-    mountedRef.current = true;
-    connect();
     return () => {
       mountedRef.current = false;
+      clearTimeout(initTimer);
       clearTimeout(reconnectTimer.current);
-      wsRef.current?.close();
+      if (wsRef.current) {
+        wsRef.current.onclose = null;
+        wsRef.current.onerror = null;
+        wsRef.current.close();
+        wsRef.current = null;
+      }
     };
   }, []);
 
