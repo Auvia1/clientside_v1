@@ -1163,26 +1163,41 @@ function WeekView({ doctor, anchorDate, onShiftWeek }) {
             style={{ gridTemplateColumns: `80px repeat(7, minmax(120px, 1fr))` }}>
             <div />
             {weekDays.map((d, i) => {
-              const ymd     = toYMD(d);
-              const isToday = ymd === todayStr;
-              const count   = (weekData[ymd] || []).length;
-              return (
-                <div key={ymd}
-                  className={`rounded-xl p-2 text-center border ${isToday ? "border-emerald-300 bg-emerald-50" : "border-slate-100 bg-white"}`}>
-                  <p className={`text-[11px] font-semibold uppercase tracking-wide ${isToday ? "text-emerald-700" : "text-slate-500"}`}>
-                    {DAY_LABELS[i]}
-                  </p>
-                  <p className={`text-base font-bold ${isToday ? "text-emerald-700" : "text-slate-800"}`}>
-                    {d.getDate()}
-                  </p>
-                  {count > 0 && (
-                    <span className="inline-block mt-0.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-700">
-                      {count} appt{count !== 1 ? "s" : ""}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
+  const ymd     = toYMD(d);
+  const isToday = ymd === todayStr;
+  const count   = (weekData[ymd] || []).length;
+  return (
+    <div key={ymd}
+      className={`rounded-xl border p-3 ${isToday ? "border-emerald-300 bg-emerald-50" : "border-slate-100 bg-white"}`}>
+      {/* Top row: avatar + day/date */}
+      <div className="flex items-center gap-2">
+        <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-semibold ${isToday ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
+          {initials(doctor.name)}
+        </div>
+        <div className="min-w-0">
+          <p className={`text-[11px] font-semibold uppercase tracking-wide ${isToday ? "text-emerald-700" : "text-slate-500"}`}>
+            {DAY_LABELS[i]}
+          </p>
+          <p className={`text-sm font-bold leading-none ${isToday ? "text-emerald-700" : "text-slate-800"}`}>
+            {d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+          </p>
+        </div>
+      </div>
+      {/* Appointment count badge */}
+      <div className="mt-2">
+        {count > 0 ? (
+          <span className="inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-semibold text-emerald-700">
+            {count} appt{count !== 1 ? "s" : ""}
+          </span>
+        ) : (
+          <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-semibold text-slate-400">
+            Free
+          </span>
+        )}
+      </div>
+    </div>
+  );
+})}
           </div>
 
           {/* Time rows */}
