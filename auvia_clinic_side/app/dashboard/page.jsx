@@ -14,7 +14,7 @@
 // import { Badge } from "../components/ui/badge";
 // import { Tabs, TabsList, TabsTrigger } from "../components/ui/tabs";
 // import { useSchedule } from "../hooks/useSchedule";
-// import { CLINIC_ID } from "../lib/api";
+// import { doctorsApi } from "../lib/api";
 
 // // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -34,6 +34,20 @@
 //   return `${Math.floor(mins / 60)}h ago`;
 // }
 
+// // ─── useDoctors ───────────────────────────────────────────────────────────────
+
+// function useDoctors() {
+//   const [doctors, setDoctors] = useState([]);
+
+//   useEffect(() => {
+//     doctorsApi.list()
+//       .then((data) => setDoctors(data || []))
+//       .catch(() => {});
+//   }, []);
+
+//   return doctors;
+// }
+
 // // ─── useLiveActivity ──────────────────────────────────────────────────────────
 
 // function useLiveActivity() {
@@ -47,8 +61,9 @@
 //   useEffect(() => {
 //     mountedRef.current = true;
 
-//     // Fetch initial activity via REST
-//     fetch(`/api/activity?limit=10&clinic_id=${CLINIC_ID}`)
+//     const clinicId = localStorage.getItem("auvia_clinic_id") || "";
+
+//     fetch(`/api/activity?limit=10&clinic_id=${clinicId}`)
 //       .then((r) => r.json())
 //       .then((json) => { if (json.success && mountedRef.current) setActivities(json.data); })
 //       .catch(() => {});
@@ -56,7 +71,6 @@
 //     function connectWs() {
 //       if (!mountedRef.current) return;
 
-//       // Tear down any existing socket before opening a new one
 //       if (wsRef.current) {
 //         wsRef.current.onclose = null;
 //         wsRef.current.onerror = null;
@@ -64,7 +78,6 @@
 //         wsRef.current = null;
 //       }
 
-//       // Connect through the Next.js server (which proxies to private backend)
 //       const proto = window.location.protocol === "https:" ? "wss" : "ws";
 //       const ws    = new WebSocket(`${proto}://${window.location.host}/ws/activity`);
 //       wsRef.current = ws;
@@ -94,7 +107,6 @@
 //       ws.onerror = () => { ws.onclose = null; ws.close(); scheduleReconnect(); };
 //     }
 
-//     // Small delay so React Strict Mode double-invoke cleanup runs first
 //     const initTimer = setTimeout(connectWs, 150);
 
 //     return () => {
@@ -221,27 +233,26 @@
 //   const today = new Date().toISOString().split("T")[0];
 
 //   const [activeMonitoring, setActiveMonitoring] = useState(true);
+//   // "all" | doctor.id
 //   const [providerFilter, setProviderFilter]     = useState("all");
 //   const [showAll, setShowAll]                   = useState(false);
 //   const [todayFormatted, setTodayFormatted]     = useState("");
 //   const [timeNow, setTimeNow]                   = useState("");
 
-//   const { activities, wsStatus } = useLiveActivity();
+//   const doctors                                 = useDoctors();
+//   const { activities, wsStatus }                = useLiveActivity();
 
 //   const { schedule, stats, loading, error, lastRefresh, refresh, updateAppointmentStatus } =
 //     useSchedule(today);
 
-//   // ── Filtered schedule ──
+//   // Filter by selected doctor id (or show all)
 //   const filteredSchedule = schedule.filter((appt) => {
 //     if (providerFilter === "all") return true;
-//     return appt.doctor_name?.toLowerCase().includes(
-//       providerFilter === "rao" ? "rao" : "reddy"
-//     );
+//     return appt.doctor_id === providerFilter;
 //   });
 
 //   const visibleSchedule = showAll ? filteredSchedule : filteredSchedule.slice(0, 5);
 
-//   // ── Date / time display ──
 //   useEffect(() => {
 //     const now = new Date();
 //     setTodayFormatted(now.toLocaleDateString("en-IN", {
@@ -252,8 +263,14 @@
 //     }));
 //   }, []);
 
-//   // ── Stats summary ──
-//   const totalAppts    = Number(stats?.total       || 0);
+//   // Reset filter to "all" if the selected doctor is no longer in the list
+//   useEffect(() => {
+//     if (providerFilter !== "all" && !doctors.find((d) => d.id === providerFilter)) {
+//       setProviderFilter("all");
+//     }
+//   }, [doctors, providerFilter]);
+
+//   const totalAppts     = Number(stats?.total     || 0);
 //   const confirmedAppts = Number(stats?.confirmed  || 0);
 //   const completedAppts = Number(stats?.completed  || 0);
 
@@ -327,11 +344,16 @@
 //                     </p>
 //                   </div>
 //                 </div>
-//                 <Tabs value={providerFilter} onValueChange={setProviderFilter}>
+
+//                 {/* ── Dynamic doctor tabs ── */}
+//                 <Tabs value={providerFilter} onValueChange={(v) => { setProviderFilter(v); setShowAll(false); }}>
 //                   <TabsList className="bg-slate-100">
 //                     <TabsTrigger value="all">All Providers</TabsTrigger>
-//                     <TabsTrigger value="rao">Dr. Rao</TabsTrigger>
-//                     <TabsTrigger value="reddy">Dr. Reddy</TabsTrigger>
+//                     {doctors.map((d) => (
+//                       <TabsTrigger key={d.id} value={d.id}>
+//                         Dr. {d.name.split(" ").pop()}
+//                       </TabsTrigger>
+//                     ))}
 //                   </TabsList>
 //                 </Tabs>
 //               </CardHeader>
@@ -427,8 +449,12 @@
 //                           <div className="min-w-0">
 //                             <p className="text-xs text-slate-400">{activityAge(item.created_at)}</p>
 //                             <p className="text-sm text-slate-700 leading-snug">{item.title}</p>
-//                             {item.meta && (
-//                               <p className="text-xs text-slate-400 truncate">{item.meta}</p>
+//                             {item.meta?.appointment_start && (
+//                               <p className="text-xs text-slate-400 truncate">
+//                                 {new Date(item.meta.appointment_start).toLocaleTimeString("en-IN", {
+//                                   hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata",
+//                                 })}
+//                               </p>
 //                             )}
 //                           </div>
 //                         </div>
@@ -455,16 +481,16 @@
 //                 <div className="mt-4 space-y-4">
 //                   {[
 //                     {
-//                       label: "Standard Bookings",
+//                       label:   "Standard Bookings",
 //                       display: "₹32,400",
-//                       color: "bg-slate-900",
-//                       pct: totalAppts > 0 ? (confirmedAppts / totalAppts) * 100 : 70,
+//                       color:   "bg-slate-900",
+//                       pct:     totalAppts > 0 ? (confirmedAppts / totalAppts) * 100 : 70,
 //                     },
 //                     {
-//                       label: "Agent Generated",
+//                       label:   "Agent Generated",
 //                       display: "₹21,850",
-//                       color: "bg-emerald-400",
-//                       pct: totalAppts > 0 ? (completedAppts / totalAppts) * 100 : 48,
+//                       color:   "bg-emerald-400",
+//                       pct:     totalAppts > 0 ? (completedAppts / totalAppts) * 100 : 48,
 //                     },
 //                   ].map(({ label, display, color, pct }) => (
 //                     <div key={label}>
@@ -524,6 +550,7 @@ import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { useSchedule } from "../hooks/useSchedule";
+import { doctorsApi } from "../lib/api";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -543,6 +570,20 @@ function activityAge(createdAt) {
   return `${Math.floor(mins / 60)}h ago`;
 }
 
+// ─── useDoctors ───────────────────────────────────────────────────────────────
+
+function useDoctors() {
+  const [doctors, setDoctors] = useState([]);
+
+  useEffect(() => {
+    doctorsApi.list()
+      .then((data) => setDoctors(data || []))
+      .catch(() => {});
+  }, []);
+
+  return doctors;
+}
+
 // ─── useLiveActivity ──────────────────────────────────────────────────────────
 
 function useLiveActivity() {
@@ -558,7 +599,6 @@ function useLiveActivity() {
 
     const clinicId = localStorage.getItem("auvia_clinic_id") || "";
 
-    // Fetch initial activity via REST
     fetch(`/api/activity?limit=10&clinic_id=${clinicId}`)
       .then((r) => r.json())
       .then((json) => { if (json.success && mountedRef.current) setActivities(json.data); })
@@ -729,21 +769,22 @@ export default function DashboardPage() {
   const today = new Date().toISOString().split("T")[0];
 
   const [activeMonitoring, setActiveMonitoring] = useState(true);
+  // "all" | doctor.id
   const [providerFilter, setProviderFilter]     = useState("all");
   const [showAll, setShowAll]                   = useState(false);
   const [todayFormatted, setTodayFormatted]     = useState("");
   const [timeNow, setTimeNow]                   = useState("");
 
-  const { activities, wsStatus } = useLiveActivity();
+  const doctors                                 = useDoctors();
+  const { activities, wsStatus }                = useLiveActivity();
 
   const { schedule, stats, loading, error, lastRefresh, refresh, updateAppointmentStatus } =
     useSchedule(today);
 
+  // Filter by selected doctor id (or show all)
   const filteredSchedule = schedule.filter((appt) => {
     if (providerFilter === "all") return true;
-    return appt.doctor_name?.toLowerCase().includes(
-      providerFilter === "rao" ? "rao" : "reddy"
-    );
+    return appt.doctor_id === providerFilter;
   });
 
   const visibleSchedule = showAll ? filteredSchedule : filteredSchedule.slice(0, 5);
@@ -757,6 +798,13 @@ export default function DashboardPage() {
       hour: "2-digit", minute: "2-digit",
     }));
   }, []);
+
+  // Reset filter to "all" if the selected doctor is no longer in the list
+  useEffect(() => {
+    if (providerFilter !== "all" && !doctors.find((d) => d.id === providerFilter)) {
+      setProviderFilter("all");
+    }
+  }, [doctors, providerFilter]);
 
   const totalAppts     = Number(stats?.total     || 0);
   const confirmedAppts = Number(stats?.confirmed  || 0);
@@ -832,11 +880,16 @@ export default function DashboardPage() {
                     </p>
                   </div>
                 </div>
-                <Tabs value={providerFilter} onValueChange={setProviderFilter}>
+
+                {/* ── Dynamic doctor tabs ── */}
+                <Tabs value={providerFilter} onValueChange={(v) => { setProviderFilter(v); setShowAll(false); }}>
                   <TabsList className="bg-slate-100">
                     <TabsTrigger value="all">All Providers</TabsTrigger>
-                    <TabsTrigger value="rao">Dr. Rao</TabsTrigger>
-                    <TabsTrigger value="reddy">Dr. Reddy</TabsTrigger>
+                    {doctors.map((d) => (
+                      <TabsTrigger key={d.id} value={d.id}>
+                        Dr. {d.name.split(" ").pop()}
+                      </TabsTrigger>
+                    ))}
                   </TabsList>
                 </Tabs>
               </CardHeader>
@@ -964,16 +1017,16 @@ export default function DashboardPage() {
                 <div className="mt-4 space-y-4">
                   {[
                     {
-                      label: "Standard Bookings",
+                      label:   "Standard Bookings",
                       display: "₹32,400",
-                      color: "bg-slate-900",
-                      pct: totalAppts > 0 ? (confirmedAppts / totalAppts) * 100 : 70,
+                      color:   "bg-slate-900",
+                      pct:     totalAppts > 0 ? (confirmedAppts / totalAppts) * 100 : 70,
                     },
                     {
-                      label: "Agent Generated",
+                      label:   "Agent Generated",
                       display: "₹21,850",
-                      color: "bg-emerald-400",
-                      pct: totalAppts > 0 ? (completedAppts / totalAppts) * 100 : 48,
+                      color:   "bg-emerald-400",
+                      pct:     totalAppts > 0 ? (completedAppts / totalAppts) * 100 : 48,
                     },
                   ].map(({ label, display, color, pct }) => (
                     <div key={label}>
