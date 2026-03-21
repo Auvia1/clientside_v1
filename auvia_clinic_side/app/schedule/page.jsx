@@ -767,7 +767,7 @@ import { Input } from "../components/ui/input";
 import {
   FiChevronLeft, FiChevronRight, FiSearch, FiCalendar,
   FiX, FiRefreshCw, FiAlertCircle, FiLoader, FiActivity,
-  FiCheck, FiUserX,
+  FiCheck, FiUserX, FiClock,
 } from "react-icons/fi";
 import { useClinicSchedule, usePatientSearch } from "../hooks/useSchedule";
 import { appointmentsApi } from "../lib/api";
@@ -812,6 +812,20 @@ function statusLabel(status) {
     rescheduled: "Rescheduled",
   };
   return map[status] || status;
+}
+
+// Color palette for appointment chips — cycles by index
+const CHIP_COLORS = [
+  { bg: "bg-sky-100",     border: "border-sky-300",     text: "text-sky-800",     dot: "bg-sky-500"     },
+  { bg: "bg-violet-100",  border: "border-violet-300",  text: "text-violet-800",  dot: "bg-violet-500"  },
+  { bg: "bg-emerald-100", border: "border-emerald-300", text: "text-emerald-800", dot: "bg-emerald-500" },
+  { bg: "bg-amber-100",   border: "border-amber-300",   text: "text-amber-800",   dot: "bg-amber-500"   },
+  { bg: "bg-rose-100",    border: "border-rose-300",    text: "text-rose-800",    dot: "bg-rose-500"    },
+  { bg: "bg-teal-100",    border: "border-teal-300",    text: "text-teal-800",    dot: "bg-teal-500"    },
+];
+
+function chipColor(index) {
+  return CHIP_COLORS[index % CHIP_COLORS.length];
 }
 
 function initials(name = "") {
@@ -1003,7 +1017,341 @@ function useWeekSchedule(doctorId, anchorDate) {
   return { weekData, loading };
 }
 
-// ─── AppointmentCell ──────────────────────────────────────────────────────────
+// ─── CalendarAppointmentChip ─────────────────────────────────────────────────
+// Google Calendar-style chip shown inside the week grid cell
+
+function CalendarAppointmentChip({ appt, colorIndex, onStatusChange }) {
+  const [updating, setUpdating]       = useState(false);
+  const [localStatus, setLocalStatus] = useState(appt.status);
+  const [expanded, setExpanded]       = useState(false);
+  const [toastMsg, setToastMsg]       = useState(null);
+  const [errorMsg, setErrorMsg]       = useState(null);
+  const color = chipColor(colorIndex);
+
+  useEffect(() => { setLocalStatus(appt.status); }, [appt.status]);
+
+  async function handleChange(e, newStatus) {
+    e.stopPropagation();
+    if (updating) return;
+    setUpdating(true);
+    setErrorMsg(null);
+    const previous = localStatus;
+    setLocalStatus(newStatus);
+    try {
+      await onStatusChange(appt.id, newStatus);
+      setToastMsg(newStatus === "completed" ? "Marked complete ✓" : "Marked no-show");
+      setTimeout(() => { setToastMsg(null); setExpanded(false); }, 1_800);
+    } catch (err) {
+      setLocalStatus(previous);
+      setErrorMsg(err?.message || "Update failed");
+    } finally {
+      setUpdating(false);
+    }
+  }
+
+  const isActionable = localStatus === "confirmed" || localStatus === "pending";
+  const isCancelled  = localStatus === "cancelled" || localStatus === "no_show";
+
+  return (
+    <>
+      {/* Chip — always visible in the cell */}
+      <div
+        onClick={() => setExpanded(true)}
+        className={`
+          relative w-full rounded-md border-l-4 px-2 py-1.5 cursor-pointer
+          transition-all duration-150 hover:brightness-95 hover:shadow-sm select-none
+          ${color.bg} ${color.border}
+          ${isCancelled ? "opacity-50 line-through" : ""}
+        `}
+      >
+        {/* Patient name */}
+        <p className={`text-[11px] font-semibold leading-tight truncate ${color.text}`}>
+          {appt.patient_name}
+        </p>
+        {/* Reason */}
+        {appt.reason && (
+          <p className={`text-[10px] leading-tight truncate mt-0.5 opacity-75 ${color.text}`}>
+            {appt.reason}
+          </p>
+        )}
+        {/* Time range */}
+        <p className={`text-[9px] leading-tight mt-0.5 opacity-60 flex items-center gap-0.5 ${color.text}`}>
+          <FiClock className="inline h-2 w-2" />
+          {formatTimeLabel(appt.start_time)}–{formatTimeLabel(appt.end_time)}
+        </p>
+        {/* Status dot */}
+        <span className={`absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full ${color.dot}`} />
+      </div>
+
+      {/* Expanded popover overlay */}
+      {expanded && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-[1px]"
+          onClick={() => setExpanded(false)}
+        >
+          <div
+            className="relative w-72 rounded-2xl bg-white shadow-xl border border-slate-100 p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close */}
+            <button
+              onClick={() => setExpanded(false)}
+              className="absolute right-3 top-3 text-slate-400 hover:text-slate-600"
+            >
+              <FiX className="h-4 w-4" />
+            </button>
+
+            {/* Header */}
+            <div className="flex items-center gap-3 mb-3">
+              <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-full text-sm font-bold ${color.bg} ${color.text}`}>
+                {initials(appt.patient_name)}
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-800">{appt.patient_name}</p>
+                <Badge variant={statusVariant(localStatus)} className="text-[9px] mt-0.5">
+                  {statusLabel(localStatus)}
+                </Badge>
+              </div>
+            </div>
+
+            {/* Details */}
+            <div className="space-y-1.5 mb-4">
+              {appt.reason && (
+                <div className="flex items-start gap-2 text-sm text-slate-600">
+                  <span className="text-slate-400 text-xs mt-0.5 shrink-0">Reason</span>
+                  <span className="font-medium">{appt.reason}</span>
+                </div>
+              )}
+              <div className="flex items-center gap-2 text-sm text-slate-600">
+                <FiClock className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                <span>{formatTimeLabel(appt.start_time)} – {formatTimeLabel(appt.end_time)}</span>
+              </div>
+            </div>
+
+            {/* Toast */}
+            {toastMsg && (
+              <div className="mb-3 flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
+                <FiCheck className="h-3 w-3" />{toastMsg}
+              </div>
+            )}
+            {errorMsg && (
+              <div className="mb-3 flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">
+                <FiAlertCircle className="h-3 w-3 shrink-0" />{errorMsg}
+              </div>
+            )}
+
+            {/* Actions */}
+            {isActionable && (
+              <div className="flex gap-2">
+                <button
+                  onClick={(e) => handleChange(e, "completed")}
+                  disabled={updating}
+                  className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-600 active:scale-95 disabled:opacity-50 transition-all"
+                >
+                  {updating ? <FiLoader className="animate-spin h-3 w-3" /> : <FiCheck className="h-3 w-3" />}
+                  Done
+                </button>
+                <button
+                  onClick={(e) => handleChange(e, "no_show")}
+                  disabled={updating}
+                  className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-100 active:scale-95 disabled:opacity-50 transition-all"
+                >
+                  <FiUserX className="h-3 w-3" />No-show
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ─── WeekView ─────────────────────────────────────────────────────────────────
+// Google Calendar-style: time rows × day columns, chips inside cells
+
+function WeekView({ doctor, anchorDate, onShiftWeek }) {
+  const { weekData, loading } = useWeekSchedule(doctor.id, anchorDate);
+  const weekDays = getWeekDays(anchorDate);
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  // Map each day→slot→appointment
+  function buildDaySlotMap(appts = []) {
+    function toHHMM(t) {
+      if (!t) return "";
+      const parts = t.split(":");
+      return String(parseInt(parts[0], 10)).padStart(2, "0") + ":" + (parts[1] || "00");
+    }
+    const slotMap = {};
+    for (const slot of TIME_SLOTS) {
+      const slotHHMM = labelToDbTime(slot).slice(0, 5);
+      const match = appts.find((a) => toHHMM(a.start_time) === slotHHMM);
+      if (match) slotMap[slot] = match;
+    }
+    return slotMap;
+  }
+
+  const slotMaps = useMemo(() => {
+    const maps = {};
+    for (const d of weekDays) {
+      const ymd = toYMD(d);
+      maps[ymd] = buildDaySlotMap(weekData[ymd] || []);
+    }
+    return maps;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekData]);
+
+  // Total appointments this week
+  const weekTotal = Object.values(weekData).reduce((sum, appts) => sum + appts.length, 0);
+
+  const weekLabel = (() => {
+    const s = weekDays[0].toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+    const e = weekDays[6].toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+    return `${s} – ${e}`;
+  })();
+
+  return (
+    <div>
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <div className="grid h-10 w-10 place-items-center rounded-full bg-slate-800 text-sm font-bold text-white shrink-0">
+            {initials(doctor.name)}
+          </div>
+          <div>
+            <p className="text-base font-semibold text-slate-800">{doctor.name}</p>
+            <p className="text-xs text-slate-400">
+              {doctor.speciality} · {doctor.consultation_duration_minutes}min slots
+              {weekTotal > 0 && (
+                <span className="ml-2 inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                  {weekTotal} this week
+                </span>
+              )}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-slate-500 hidden sm:block">{weekLabel}</span>
+          <Button variant="outline" className="rounded-full px-3 h-8" onClick={() => onShiftWeek(-7)}>
+            <FiChevronLeft />
+          </Button>
+          <Button variant="outline" className="rounded-full px-4 h-8 text-xs" onClick={() => onShiftWeek("today")}>
+            This week
+          </Button>
+          <Button variant="outline" className="rounded-full px-3 h-8" onClick={() => onShiftWeek(7)}>
+            <FiChevronRight />
+          </Button>
+        </div>
+      </div>
+
+      {loading ? (
+        /* Skeleton */
+        <div className="space-y-2">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="flex gap-2">
+              <div className="w-[72px] h-[72px] animate-pulse rounded-lg bg-slate-100 shrink-0" />
+              {[0, 1, 2, 3, 4, 5, 6].map((j) => (
+                <div key={j} className="flex-1 h-[72px] animate-pulse rounded-lg bg-slate-50" />
+              ))}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          {/* ── Day column headers ── */}
+          <div
+            className="grid mb-1"
+            style={{ gridTemplateColumns: `72px repeat(7, minmax(130px, 1fr))`, gap: "6px" }}
+          >
+            {/* Empty corner */}
+            <div />
+            {weekDays.map((d, i) => {
+              const ymd     = toYMD(d);
+              const isToday = ymd === todayStr;
+              const count   = (weekData[ymd] || []).length;
+              return (
+                <div
+                  key={ymd}
+                  className={`rounded-xl px-2 py-2 text-center border ${
+                    isToday
+                      ? "bg-emerald-50 border-emerald-200"
+                      : "bg-slate-50 border-slate-100"
+                  }`}
+                >
+                  <p className={`text-[10px] font-semibold uppercase tracking-wide ${isToday ? "text-emerald-600" : "text-slate-400"}`}>
+                    {DAY_LABELS[i]}
+                  </p>
+                  <p className={`text-sm font-bold leading-tight ${isToday ? "text-emerald-700" : "text-slate-700"}`}>
+                    {d.toLocaleDateString("en-IN", { day: "numeric" })}
+                  </p>
+                  {count > 0 ? (
+                    <span className={`mt-1 inline-block rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${isToday ? "bg-emerald-200 text-emerald-800" : "bg-slate-200 text-slate-600"}`}>
+                      {count}
+                    </span>
+                  ) : (
+                    <span className="mt-1 inline-block rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] text-slate-300">
+                      —
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* ── Time rows × day columns ── */}
+          <div className="space-y-[3px]">
+            {TIME_SLOTS.map((slot, slotIdx) => (
+              <div
+                key={slot}
+                className="grid items-stretch"
+                style={{ gridTemplateColumns: `72px repeat(7, minmax(130px, 1fr))`, gap: "6px", minHeight: "72px" }}
+              >
+                {/* Time label */}
+                <div className="flex flex-col items-end justify-start pt-1 pr-2">
+                  <span className="text-[10px] font-semibold text-slate-400 whitespace-nowrap">{slot}</span>
+                </div>
+
+                {/* Day cells */}
+                {weekDays.map((d, dayIdx) => {
+                  const ymd  = toYMD(d);
+                  const appt = slotMaps[ymd]?.[slot] ?? null;
+                  const isToday = ymd === todayStr;
+
+                  return (
+                    <div
+                      key={ymd}
+                      className={`relative rounded-lg border min-h-[72px] p-1 transition-colors ${
+                        isToday
+                          ? "border-emerald-100 bg-emerald-50/40"
+                          : "border-slate-100 bg-white/50"
+                      } ${!appt ? "hover:bg-slate-50" : ""}`}
+                    >
+                      {appt ? (
+                        <CalendarAppointmentChip
+                          appt={appt}
+                          colorIndex={slotIdx + dayIdx}
+                          onStatusChange={(id, status) => appointmentsApi.updateStatus(id, status)}
+                        />
+                      ) : (
+                        /* Empty slot — subtle dashed hint */
+                        <div className="h-full w-full flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                          <span className="text-[9px] text-slate-300">Free</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── AppointmentCell (used in All Doctors day view) ───────────────────────────
 
 function AppointmentCell({ appt, onStatusChange }) {
   const [updating, setUpdating]       = useState(false);
@@ -1076,181 +1424,6 @@ function AppointmentCell({ appt, onStatusChange }) {
         </div>
       </CardContent>
     </Card>
-  );
-}
-
-// ─── WeekView ─────────────────────────────────────────────────────────────────
-
-function WeekView({ doctor, anchorDate, onShiftWeek }) {
-  const { weekData, loading } = useWeekSchedule(doctor.id, anchorDate);
-  const weekDays = getWeekDays(anchorDate);
-  const todayStr = new Date().toISOString().slice(0, 10);
-
-  function buildDaySlotMap(appts = []) {
-    function toHHMM(t) {
-      if (!t) return "";
-      const parts = t.split(":");
-      return String(parseInt(parts[0], 10)).padStart(2, "0") + ":" + (parts[1] || "00");
-    }
-    const slotMap = {};
-    for (const slot of TIME_SLOTS) {
-      const slotHHMM = labelToDbTime(slot).slice(0, 5);
-      const match = appts.find((a) => toHHMM(a.start_time) === slotHHMM);
-      if (match) slotMap[slot] = match;
-    }
-    return slotMap;
-  }
-
-  const slotMaps = useMemo(() => {
-    const maps = {};
-    for (const d of weekDays) {
-      const ymd = toYMD(d);
-      maps[ymd] = buildDaySlotMap(weekData[ymd] || []);
-    }
-    return maps;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [weekData]);
-
-  const weekLabel = (() => {
-    const s = weekDays[0].toLocaleDateString("en-IN", { day: "numeric", month: "short" });
-    const e = weekDays[6].toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
-    return `${s} – ${e}`;
-  })();
-
-  return (
-    <div>
-      {/* ── Week nav ── */}
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <div className="flex items-center gap-2">
-          <div className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600 shrink-0">
-            {initials(doctor.name)}
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-slate-800">{doctor.name}</p>
-            <p className="text-xs text-slate-400">
-              {doctor.speciality} · {doctor.consultation_duration_minutes}min slots
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500 hidden sm:block">{weekLabel}</span>
-          <Button variant="outline" className="rounded-full px-3 h-8" onClick={() => onShiftWeek(-7)}>
-            <FiChevronLeft />
-          </Button>
-          <Button variant="outline" className="rounded-full px-3 h-8 text-xs" onClick={() => onShiftWeek("today")}>
-            This week
-          </Button>
-          <Button variant="outline" className="rounded-full px-3 h-8" onClick={() => onShiftWeek(7)}>
-            <FiChevronRight />
-          </Button>
-        </div>
-      </div>
-
-      {loading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="flex gap-2">
-              <div className="w-[90px] h-[70px] animate-pulse rounded-xl bg-slate-100 shrink-0" />
-              {[0, 1, 2, 3, 4, 5, 6].map((j) => (
-                <div key={j} className="flex-1 h-[70px] animate-pulse rounded-xl bg-slate-50" />
-              ))}
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="overflow-x-auto">
-          {/* ── Day column headers — same style as All Doctors cards ── */}
-          <div
-            className="grid gap-3 mb-2"
-            style={{ gridTemplateColumns: `90px repeat(7, minmax(160px, 1fr))` }}
-          >
-            <div />
-            {weekDays.map((d, i) => {
-              const ymd     = toYMD(d);
-              const isToday = ymd === todayStr;
-              const count   = (weekData[ymd] || []).length;
-              return (
-                <Card
-                  key={ymd}
-                  className={isToday ? "border-emerald-300 bg-emerald-50" : ""}
-                >
-                  <CardContent className="p-3">
-                    {/* Avatar + day/date — mirrors All Doctors card layout */}
-                    <div className="flex items-center gap-2">
-                      <div
-                        className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-semibold ${
-                          isToday ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"
-                        }`}
-                      >
-                        {initials(doctor.name)}
-                      </div>
-                      <div className="min-w-0">
-                        <p
-                          className={`text-[11px] font-semibold uppercase tracking-wide ${
-                            isToday ? "text-emerald-700" : "text-slate-500"
-                          }`}
-                        >
-                          {DAY_LABELS[i]}
-                        </p>
-                        <p
-                          className={`text-sm font-bold leading-none ${
-                            isToday ? "text-emerald-700" : "text-slate-800"
-                          }`}
-                        >
-                          {d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
-                        </p>
-                      </div>
-                    </div>
-                    {/* Appointment count badge */}
-                    <div className="mt-2">
-                      {count > 0 ? (
-                        <span className="inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-semibold text-emerald-700">
-                          {count} appt{count !== 1 ? "s" : ""}
-                        </span>
-                      ) : (
-                        <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-semibold text-slate-400">
-                          Free
-                        </span>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-
-          {/* ── Time rows — identical structure to All Doctors grid ── */}
-          <div className="space-y-3">
-            {TIME_SLOTS.map((slot) => (
-              <div
-                key={slot}
-                className="grid gap-3"
-                style={{ gridTemplateColumns: `90px repeat(7, minmax(160px, 1fr))` }}
-              >
-                <div className="text-xs font-semibold text-slate-400 pt-2 shrink-0">{slot}</div>
-                {weekDays.map((d) => {
-                  const ymd  = toYMD(d);
-                  const appt = slotMaps[ymd]?.[slot] ?? null;
-                  return (
-                    <Card
-                      key={ymd}
-                      className="min-h-[70px] bg-white/60"
-                    >
-                      {appt && (
-                        <AppointmentCell
-                          appt={appt}
-                          onStatusChange={(id, status) => appointmentsApi.updateStatus(id, status)}
-                        />
-                      )}
-                    </Card>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -1380,6 +1553,11 @@ export default function SchedulePage() {
     shiftDate(offset);
   };
 
+  // ── Clicking a doctor pill selects it; clicking again returns to "all" ──
+  const handleDoctorPillClick = (doctorId) => {
+    setDoctorFilter((prev) => (prev === doctorId ? "all" : doctorId));
+  };
+
   const visibleDoctors = doctors;
 
   function buildSlotMap(doctorId) {
@@ -1473,7 +1651,8 @@ export default function SchedulePage() {
             {/* ── Schedule panel ── */}
             <Card className="border-slate-100 shadow-sm overflow-x-auto">
               <CardHeader className="pb-2">
-                {/* Doctor filter pills */}
+
+                {/* ── Doctor filter pills ── */}
                 <div className="flex flex-wrap items-center gap-2 mb-4">
                   <Button
                     variant={doctorFilter === "all" ? "default" : "outline"}
@@ -1486,12 +1665,24 @@ export default function SchedulePage() {
                     <Button
                       key={d.id}
                       variant={doctorFilter === d.id ? "default" : "outline"}
-                      className="rounded-full px-4 text-xs"
-                      onClick={() => setDoctorFilter(doctorFilter === d.id ? "all" : d.id)}
+                      className={`rounded-full px-4 text-xs transition-all duration-150 ${
+                        doctorFilter === d.id
+                          ? ""
+                          : "hover:bg-slate-800 hover:text-white hover:border-slate-800"
+                      }`}
+                      onClick={() => handleDoctorPillClick(d.id)}
+                      title={`View ${d.name}'s week schedule`}
                     >
                       Dr. {d.name.split(" ").pop()}
                     </Button>
                   ))}
+
+                  {/* Hint text when no doctor selected */}
+                  {doctorFilter === "all" && doctors.length > 0 && (
+                    <span className="text-[10px] text-slate-400 ml-1 hidden sm:block">
+                      Click a doctor to see their full week →
+                    </span>
+                  )}
                 </div>
 
                 {/* Column headers — only in all-doctors mode */}
@@ -1508,19 +1699,28 @@ export default function SchedulePage() {
                       style={{ gridTemplateColumns: `90px repeat(${visibleDoctors.length}, minmax(160px, 1fr))` }}>
                       <span />
                       {visibleDoctors.map((doctor) => (
-                        <Card key={doctor.id}>
+                        <Card
+                          key={doctor.id}
+                          className="cursor-pointer hover:border-slate-300 hover:shadow-sm transition-all duration-150 group"
+                          onClick={() => handleDoctorPillClick(doctor.id)}
+                          title={`View ${doctor.name}'s week`}
+                        >
                           <CardContent className="p-3">
                             <div className="flex items-center gap-2">
-                              <div className="grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600 shrink-0">
+                              <div className="grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600 shrink-0 group-hover:bg-slate-800 group-hover:text-white transition-colors">
                                 {initials(doctor.name)}
                               </div>
                               <div className="min-w-0">
-                                <p className="text-sm font-semibold text-slate-800 truncate">{doctor.name}</p>
+                                <p className="text-sm font-semibold text-slate-800 truncate group-hover:text-slate-900">{doctor.name}</p>
                                 <p className="text-[10px] text-slate-400">{doctor.speciality}</p>
                               </div>
                             </div>
                             <p className="mt-1.5 text-[10px] text-slate-400">
                               {doctor.consultation_duration_minutes}min slots
+                            </p>
+                            {/* "View week" hint on hover */}
+                            <p className="mt-1 text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity font-medium">
+                              View week schedule →
                             </p>
                           </CardContent>
                         </Card>
