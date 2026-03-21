@@ -9,26 +9,26 @@
 // import { useDoctors, useSlots } from "../hooks/useSchedule";
 
 // export default function NewAppointmentDialog({ onBooked, className }) {
-//   const [open, setOpen] = useState(false);
-//   const [step, setStep] = useState(1); // 1=details, 2=slot picker, 3=confirm
+//   const [open, setOpen]           = useState(false);
+//   const [step, setStep]           = useState(1);
 //   const [submitting, setSubmitting] = useState(false);
-//   const [error, setError] = useState(null);
-//   const [success, setSuccess] = useState(false);
+//   const [error, setError]         = useState(null);
+//   const [success, setSuccess]     = useState(false);
 
 //   const { doctors, loading: doctorsLoading } = useDoctors();
 
 //   const [form, setForm] = useState({
-//     patient_name: "",
-//     patient_phone: "",
-//     doctor_id: "",
+//     patient_name:     "",
+//     patient_phone:    "",
+//     doctor_id:        "",
 //     appointment_date: new Date().toISOString().split("T")[0],
-//     start_time: "",
-//     end_time: "",
-//     reason: "",
+//     start_time:       "",
+//     end_time:         "",
+//     reason:           "",
 //   });
 
 //   const selectedDoctor = doctors.find((d) => String(d.id) === String(form.doctor_id));
-//   const slotDuration = selectedDoctor?.consultation_duration_minutes || 30;
+//   const slotDuration   = selectedDoctor?.consultation_duration_minutes || 30;
 
 //   const { slots, loading: slotsLoading } = useSlots(form.doctor_id, form.appointment_date);
 //   const availableSlots = slots.filter((s) => s.available);
@@ -38,16 +38,16 @@
 //   }
 
 //   function selectSlot(time) {
-//     const [h, m] = time.split(":").map(Number);
+//     const [h, m]   = time.split(":").map(Number);
 //     const endTotal = h * 60 + m + slotDuration;
-//     const eh = Math.floor(endTotal / 60);
-//     const em = endTotal % 60;
+//     const eh       = Math.floor(endTotal / 60);
+//     const em       = endTotal % 60;
 //     set("start_time", time);
 //     set("end_time", `${String(eh).padStart(2, "0")}:${String(em).padStart(2, "0")}:00`);
 //     setStep(3);
 //   }
 
-//   /** "YYYY-MM-DD" + "HH:MM:SS" → "YYYY-MM-DDTHH:MM:SS+05:30" */
+//   /** Combine "YYYY-MM-DD" + "HH:MM:SS" → ISO string with IST offset */
 //   function toIST(date, time) {
 //     return `${date}T${time}+05:30`;
 //   }
@@ -73,13 +73,13 @@
 //         setSuccess(false);
 //         setStep(1);
 //         setForm({
-//           patient_name: "",
-//           patient_phone: "",
-//           doctor_id: "",
+//           patient_name:     "",
+//           patient_phone:    "",
+//           doctor_id:        "",
 //           appointment_date: new Date().toISOString().split("T")[0],
-//           start_time: "",
-//           end_time: "",
-//           reason: "",
+//           start_time:       "",
+//           end_time:         "",
+//           reason:           "",
 //         });
 //       }, 1800);
 //     } catch (err) {
@@ -91,10 +91,17 @@
 
 //   function formatSlotTime(t) {
 //     if (!t) return "";
-//     const [h, m] = t.split(":").map(Number);
-//     const period = h < 12 ? "AM" : "PM";
-//     const hour = h % 12 || 12;
+//     const [h, m]  = t.split(":").map(Number);
+//     const period  = h < 12 ? "AM" : "PM";
+//     const hour    = h % 12 || 12;
 //     return `${String(hour).padStart(2, "0")}:${String(m).padStart(2, "0")} ${period}`;
+//   }
+
+//   function resetAndClose() {
+//     setOpen(false);
+//     setStep(1);
+//     setError(null);
+//     setSuccess(false);
 //   }
 
 //   if (!open) {
@@ -112,6 +119,7 @@
 //   return (
 //     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
 //       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+
 //         {/* Header */}
 //         <div className="px-6 pt-6 pb-4 border-b border-slate-100">
 //           <div className="flex items-center justify-between">
@@ -121,13 +129,12 @@
 //               {step === 3 && "Confirm Appointment"}
 //             </h2>
 //             <button
-//               onClick={() => { setOpen(false); setStep(1); setError(null); }}
+//               onClick={resetAndClose}
 //               className="text-slate-400 hover:text-slate-600 text-xl leading-none"
 //             >
 //               ×
 //             </button>
 //           </div>
-//           {/* Stepper */}
 //           <div className="flex gap-1 mt-3">
 //             {[1, 2, 3].map((s) => (
 //               <div
@@ -141,7 +148,8 @@
 //         </div>
 
 //         <div className="px-6 py-5">
-//           {/* ── Step 1: Patient + Doctor + Date ── */}
+
+//           {/* ── Step 1 ── */}
 //           {step === 1 && (
 //             <div className="space-y-4">
 //               <div>
@@ -213,12 +221,16 @@
 //             </div>
 //           )}
 
-//           {/* ── Step 2: Slot picker ── */}
+//           {/* ── Step 2 ── */}
 //           {step === 2 && (
 //             <div>
 //               <p className="text-sm text-slate-500 mb-4">
 //                 Available slots for <strong>{selectedDoctor?.name}</strong> on{" "}
-//                 <strong>{new Date(form.appointment_date).toLocaleDateString("en-IN", { weekday: "long", month: "long", day: "numeric" })}</strong>
+//                 <strong>
+//                   {new Date(form.appointment_date).toLocaleDateString("en-IN", {
+//                     weekday: "long", month: "long", day: "numeric",
+//                   })}
+//                 </strong>
 //               </p>
 //               {slotsLoading ? (
 //                 <div className="flex items-center justify-center py-10 gap-2 text-slate-400">
@@ -256,7 +268,7 @@
 //             </div>
 //           )}
 
-//           {/* ── Step 3: Confirm ── */}
+//           {/* ── Step 3 ── */}
 //           {step === 3 && (
 //             <div className="space-y-4">
 //               {success ? (
@@ -268,15 +280,25 @@
 //                 <>
 //                   <div className="rounded-2xl bg-slate-50 p-4 text-sm space-y-2">
 //                     <Row label="Patient" value={form.patient_name} />
-//                     <Row label="Phone" value={form.patient_phone} />
-//                     <Row label="Doctor" value={selectedDoctor?.name} />
-//                     <Row label="Date" value={new Date(form.appointment_date).toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })} />
-//                     <Row label="Time" value={`${formatSlotTime(form.start_time)} → ${formatSlotTime(form.end_time)}`} />
+//                     <Row label="Phone"   value={form.patient_phone} />
+//                     <Row label="Doctor"  value={selectedDoctor?.name} />
+//                     <Row
+//                       label="Date"
+//                       value={new Date(form.appointment_date).toLocaleDateString("en-IN", {
+//                         weekday: "long", year: "numeric", month: "long", day: "numeric",
+//                       })}
+//                     />
+//                     <Row
+//                       label="Time"
+//                       value={`${formatSlotTime(form.start_time)} → ${formatSlotTime(form.end_time)}`}
+//                     />
 //                     {form.reason && <Row label="Reason" value={form.reason} />}
 //                   </div>
+
 //                   {error && (
 //                     <p className="text-xs text-red-600 bg-red-50 rounded-xl px-3 py-2">{error}</p>
 //                   )}
+
 //                   <Button
 //                     className="w-full rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 gap-2"
 //                     onClick={handleSubmit}
@@ -318,15 +340,15 @@
 import { useState } from "react";
 import { Loader2, Plus } from "lucide-react";
 import { Button } from "./ui/button";
-import { appointmentsApi, CLINIC_ID } from "../lib/api";
+import { appointmentsApi } from "../lib/api";
 import { useDoctors, useSlots } from "../hooks/useSchedule";
 
 export default function NewAppointmentDialog({ onBooked, className }) {
-  const [open, setOpen]           = useState(false);
-  const [step, setStep]           = useState(1);
+  const [open, setOpen]             = useState(false);
+  const [step, setStep]             = useState(1);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError]         = useState(null);
-  const [success, setSuccess]     = useState(false);
+  const [error, setError]           = useState(null);
+  const [success, setSuccess]       = useState(false);
 
   const { doctors, loading: doctorsLoading } = useDoctors();
 
@@ -369,8 +391,8 @@ export default function NewAppointmentDialog({ onBooked, className }) {
     setSubmitting(true);
     setError(null);
     try {
+      // clinic_id is injected automatically inside appointmentsApi.book
       await appointmentsApi.book({
-        clinic_id:         CLINIC_ID,
         patient_name:      form.patient_name,
         patient_phone:     form.patient_phone,
         doctor_id:         form.doctor_id,
@@ -481,7 +503,7 @@ export default function NewAppointmentDialog({ onBooked, className }) {
                   type="tel"
                   value={form.patient_phone}
                   onChange={(e) => set("patient_phone", e.target.value)}
-                  placeholder="+91 99999 00000"
+                  placeholder="9999900000"
                   className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"
                 />
               </div>
