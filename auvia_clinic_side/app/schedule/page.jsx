@@ -72,7 +72,9 @@
 //   if (diff === 0) return "Today";
 //   if (diff === 1) return "Yesterday";
 //   if (diff < 30)  return `${diff} days ago`;
-//   return new Date(dateStr).toLocaleDateString("en-IN", { month: "short", day: "numeric" });
+//   return new Date(dateStr).toLocaleDateString("en-IN", {
+//     month: "short", day: "numeric",
+//   });
 // }
 
 // function activityAge(createdAt) {
@@ -82,14 +84,67 @@
 //   return `${Math.floor(mins / 60)}h ago`;
 // }
 
+// /**
+//  * Maps activity event_type → a Tailwind background colour class.
+//  * "completion" is now its own type (previously it was incorrectly logged
+//  * as "manual_booking"), so it gets a distinct colour here.
+//  */
 // function activityDot(type) {
-//   return {
+//   const map = {
 //     agent_booking:  "bg-emerald-400",
 //     manual_booking: "bg-sky-400",
+//     completion:     "bg-emerald-500",   // ← fixed: was missing, fell through to grey
 //     active_call:    "bg-amber-400 animate-pulse",
 //     cancellation:   "bg-red-400",
 //     reschedule:     "bg-violet-400",
-//   }[type] || "bg-slate-300";
+//   };
+//   return map[type] || "bg-slate-300";
+// }
+
+// /**
+//  * Maps activity event_type → a short human-readable label shown
+//  * next to the coloured dot in the Live Activity panel.
+//  */
+// function activityTypeLabel(type) {
+//   const map = {
+//     agent_booking:  "Agent booked",
+//     manual_booking: "Receptionist booked",
+//     completion:     "Completed",
+//     active_call:    "Active call",
+//     cancellation:   "Cancelled",
+//     reschedule:     "Rescheduled",
+//   };
+//   return map[type] || type;
+// }
+
+// /**
+//  * Extracts a concise secondary line from the activity's meta JSONB object.
+//  * The server now stores meta as a structured object, e.g.:
+//  *   { appointment_start, appointment_end, doctor_name, ... }
+//  * We display the appointment time in IST.
+//  */
+// function metaSubline(meta) {
+//   if (!meta) return null;
+
+//   // Server returns JSONB — pg driver deserialises it to a plain JS object,
+//   // but over WebSocket the row is re-serialised to JSON string and then
+//   // parsed again, so meta will always be a plain object at this point.
+//   const obj = typeof meta === "string" ? JSON.parse(meta) : meta;
+
+//   if (obj.appointment_start) {
+//     try {
+//       return new Date(obj.appointment_start).toLocaleTimeString("en-IN", {
+//         hour:     "2-digit",
+//         minute:   "2-digit",
+//         hour12:   true,
+//         timeZone: "Asia/Kolkata",
+//       });
+//     } catch (_) {}
+//   }
+
+//   if (obj.doctor_name) return `Dr. ${obj.doctor_name}`;
+
+//   return null;
 // }
 
 // const TIME_SLOTS = [
@@ -98,7 +153,15 @@
 // ];
 
 // // ─── useLiveActivity ──────────────────────────────────────────────────────────
-
+// //
+// // Connects to the Express WebSocket server at /ws/activity.
+// //
+// // In development Next.js runs on port 3000 and Express on port 4002, so
+// // window.location.host would point to the wrong server. Set the env var
+// //   NEXT_PUBLIC_WS_HOST=localhost:4002
+// // in .env.local to override. In production (single host / reverse proxy)
+// // leave it unset and it falls back to window.location.host.
+// //
 // function useLiveActivity() {
 //   const [activities, setActivities] = useState([]);
 //   const [wsStatus, setWsStatus]     = useState("connecting");
@@ -110,14 +173,19 @@
 //   useEffect(() => {
 //     mountedRef.current = true;
 
-//     fetch(`/api/activity?limit=10&clinic_id=${CLINIC_ID}`)
+//     // ── Seed from REST on mount ───────────────────────────────────────────────
+//     fetch(`/api/activity?limit=15&clinic_id=${CLINIC_ID}`)
 //       .then((r) => r.json())
-//       .then((json) => { if (json.success && mountedRef.current) setActivities(json.data); })
+//       .then((json) => {
+//         if (json.success && mountedRef.current) setActivities(json.data);
+//       })
 //       .catch(() => {});
 
+//     // ── WebSocket connection with exponential back-off reconnect ──────────────
 //     function connectWs() {
 //       if (!mountedRef.current) return;
 
+//       // Tear down any existing socket cleanly
 //       if (wsRef.current) {
 //         wsRef.current.onclose = null;
 //         wsRef.current.onerror = null;
@@ -125,8 +193,11 @@
 //         wsRef.current = null;
 //       }
 
-//       const proto = window.location.protocol === "https:" ? "wss" : "ws";
-//       const ws    = new WebSocket(`${proto}://${window.location.host}/ws/activity`);
+//       const proto  = window.location.protocol === "https:" ? "wss" : "ws";
+//       // NEXT_PUBLIC_WS_HOST lets you point at the Express server in dev.
+//       // Falls back to the current host (works in production with a reverse proxy).
+//       const wsHost = process.env.NEXT_PUBLIC_WS_HOST || window.location.host;
+//       const ws     = new WebSocket(`${proto}://${wsHost}/ws/activity`);
 //       wsRef.current = ws;
 
 //       ws.onopen = () => {
@@ -135,25 +206,35 @@
 //         retryCount.current = 0;
 //         clearTimeout(reconnectTimer.current);
 //       };
+
 //       ws.onmessage = (e) => {
 //         try {
 //           const msg = JSON.parse(e.data);
 //           if (msg.type === "activity" && mountedRef.current) {
+//             // Prepend new event and keep the list at ≤ 20 items
 //             setActivities((prev) => [msg.data, ...prev].slice(0, 20));
 //           }
 //         } catch (_) {}
 //       };
+
 //       const scheduleReconnect = () => {
 //         if (!mountedRef.current) return;
 //         setWsStatus("closed");
-//         const delay = Math.min(3000 * Math.pow(2, retryCount.current), 30000);
+//         // Exponential back-off capped at 30 s
+//         const delay = Math.min(3_000 * Math.pow(2, retryCount.current), 30_000);
 //         retryCount.current += 1;
 //         reconnectTimer.current = setTimeout(connectWs, delay);
 //       };
+
 //       ws.onclose = scheduleReconnect;
-//       ws.onerror = () => { ws.onclose = null; ws.close(); scheduleReconnect(); };
+//       ws.onerror = () => {
+//         ws.onclose = null;
+//         ws.close();
+//         scheduleReconnect();
+//       };
 //     }
 
+//     // Small delay so the component is fully mounted before we open the socket
 //     const initTimer = setTimeout(connectWs, 150);
 
 //     return () => {
@@ -174,68 +255,61 @@
 
 // // ─── AppointmentCell ──────────────────────────────────────────────────────────
 // //
-// // Key fixes vs the original:
-// //   • localStatus mirrors appt.status but updates instantly on button click
-// //     (optimistic UI) — the badge and actionable-check use localStatus.
-// //   • Errors are caught, shown inline, and the optimistic update is rolled back
-// //     automatically by useClinicSchedule.updateStatus (which re-throws).
-// //   • Both buttons are disabled while an update is in-flight so the user
-// //     cannot double-click and trigger two concurrent PATCHes.
-// //   • A small confirmation toast appears for 2 s after a successful update.
-
+// // Renders a single appointment card inside a schedule grid cell.
+// //
+// // UX details:
+// //   • localStatus mirrors appt.status and flips immediately on button click
+// //     (optimistic update). If the PATCH fails, the hook rolls it back.
+// //   • Both buttons are disabled while a PATCH is in-flight to prevent
+// //     double-clicks sending two concurrent requests.
+// //   • A 2-second success toast appears after a confirmed update.
+// //   • Inline error message shown if the PATCH fails.
+// //
 // function AppointmentCell({ appt, onStatusChange }) {
-//   const [updating, setUpdating]     = useState(false);
-//   const [errorMsg, setErrorMsg]     = useState(null);
-//   const [toastMsg, setToastMsg]     = useState(null);
-//   // Track the displayed status locally so the badge flips instantly.
-//   // When the parent re-renders with the server-confirmed status this stays in
-//   // sync because of the useEffect below.
+//   const [updating, setUpdating]       = useState(false);
+//   const [errorMsg, setErrorMsg]       = useState(null);
+//   const [toastMsg, setToastMsg]       = useState(null);
 //   const [localStatus, setLocalStatus] = useState(appt.status);
 
-//   // Keep localStatus in sync when parent refreshes after server round-trip
+//   // Sync localStatus when the parent re-fetches after a server round-trip
 //   useEffect(() => {
 //     setLocalStatus(appt.status);
 //   }, [appt.status]);
 
 //   async function handleChange(newStatus) {
-//     if (updating) return; // guard against double-click
+//     if (updating) return;
 //     setUpdating(true);
 //     setErrorMsg(null);
 
-//     // Optimistic: flip the badge immediately
 //     const previous = localStatus;
-//     setLocalStatus(newStatus);
+//     setLocalStatus(newStatus); // optimistic flip
 
 //     try {
 //       await onStatusChange(appt.id, newStatus);
-//       // Show a brief success toast
-//       const label = newStatus === "completed" ? "Marked complete" : "Marked no-show";
+//       const label = newStatus === "completed" ? "Marked complete ✓" : "Marked no-show";
 //       setToastMsg(label);
-//       setTimeout(() => setToastMsg(null), 2000);
+//       setTimeout(() => setToastMsg(null), 2_000);
 //     } catch (err) {
-//       // Roll back the optimistic update
-//       setLocalStatus(previous);
+//       setLocalStatus(previous); // rollback
 //       setErrorMsg(err?.message || "Update failed — please retry");
 //     } finally {
 //       setUpdating(false);
 //     }
 //   }
 
-//   // Only show action buttons for statuses the clinic staff can still act on
-//   const isActionable =
-//     localStatus === "confirmed" || localStatus === "pending";
+//   const isActionable = localStatus === "confirmed" || localStatus === "pending";
 
 //   return (
 //     <div className="relative h-full rounded-xl border border-slate-200 bg-white p-3 transition-transform duration-200 hover:-translate-y-0.5 hover:shadow">
 
-//       {/* ── Success toast ── */}
+//       {/* Success toast */}
 //       {toastMsg && (
-//         <div className="absolute inset-x-2 top-2 z-10 flex items-center justify-center rounded-lg bg-emerald-500 px-2 py-1 text-[10px] font-semibold text-white shadow-sm animate-fade-in">
+//         <div className="absolute inset-x-2 top-2 z-10 flex items-center justify-center rounded-lg bg-emerald-500 px-2 py-1 text-[10px] font-semibold text-white shadow-sm">
 //           {toastMsg}
 //         </div>
 //       )}
 
-//       {/* ── Header row: patient name + status badge ── */}
+//       {/* Header: patient name + status badge */}
 //       <div className="flex items-start justify-between gap-1">
 //         <p className="text-sm font-semibold text-slate-800 leading-tight">
 //           {appt.patient_name}
@@ -245,10 +319,10 @@
 //         </Badge>
 //       </div>
 
-//       {/* ── Reason ── */}
+//       {/* Reason */}
 //       <p className="text-xs text-slate-500 mt-0.5 truncate">{appt.reason || "—"}</p>
 
-//       {/* ── Inline error message ── */}
+//       {/* Inline error */}
 //       {errorMsg && (
 //         <p className="mt-1 flex items-center gap-1 text-[10px] text-red-500">
 //           <FiAlertCircle className="shrink-0" />
@@ -256,7 +330,7 @@
 //         </p>
 //       )}
 
-//       {/* ── Footer row: time + action buttons / spinner ── */}
+//       {/* Footer: time + action buttons / spinner */}
 //       <div className="mt-2 flex items-center justify-between gap-1">
 //         <div className="flex items-center gap-1 text-[10px] text-slate-400 min-w-0">
 //           <FiCalendar className="shrink-0" />
@@ -265,12 +339,10 @@
 //           </span>
 //         </div>
 
-//         {/* Spinner while the PATCH is in-flight */}
 //         {updating && (
 //           <FiLoader className="h-3 w-3 shrink-0 animate-spin text-slate-400" />
 //         )}
 
-//         {/* Action buttons — only shown when actionable and not mid-update */}
 //         {isActionable && !updating && (
 //           <div className="flex gap-1 shrink-0">
 //             <button
@@ -311,6 +383,11 @@
 // function PatientLookup() {
 //   const { query, setQuery, results, loading, error } = usePatientSearch();
 
+//   const placeholders = [
+//     { name: "Jayanth Rao",      meta: "Last visit: 2 days ago" },
+//     { name: "Saranya Krishnan", meta: "New Patient"             },
+//   ];
+
 //   return (
 //     <Card className="border-slate-100 shadow-sm">
 //       <CardHeader>
@@ -340,10 +417,7 @@
 //           {results.length === 0 && query.trim() && !loading ? (
 //             <p className="text-xs text-slate-400 text-center py-4">No patients found.</p>
 //           ) : results.length === 0 && !query.trim() ? (
-//             [
-//               { name: "Jayanth Rao",      meta: "Last visit: 2 days ago" },
-//               { name: "Saranya Krishnan", meta: "New Patient"             },
-//             ].map((p) => (
+//             placeholders.map((p) => (
 //               <div
 //                 key={p.name}
 //                 className="flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2 transition-transform duration-200 hover:-translate-y-0.5 hover:shadow"
@@ -388,6 +462,70 @@
 //   );
 // }
 
+// // ─── LiveActivityPanel ────────────────────────────────────────────────────────
+
+// function LiveActivityPanel({ activities, wsStatus }) {
+//   return (
+//     <Card className="border-slate-100 shadow-sm">
+//       <CardHeader className="flex flex-row items-center justify-between">
+//         <div className="flex items-center gap-2">
+//           <CardTitle>Live Activity</CardTitle>
+//           <Badge
+//             variant={wsStatus === "open" ? "success" : "warning"}
+//             className="text-[9px]"
+//           >
+//             {wsStatus === "open" ? "Live" : "Reconnecting…"}
+//           </Badge>
+//         </div>
+//         <FiActivity
+//           className={`h-4 w-4 ${wsStatus === "open" ? "text-emerald-500" : "text-slate-300"}`}
+//         />
+//       </CardHeader>
+
+//       <CardContent className="space-y-4">
+//         {activities.length === 0 ? (
+//           <p className="text-xs text-slate-400 text-center py-6">
+//             No recent activity yet.
+//           </p>
+//         ) : (
+//           activities.map((item) => {
+//             const sub = metaSubline(item.meta);
+//             return (
+//               <div key={item.id} className="flex gap-3 items-start">
+//                 {/* Coloured dot */}
+//                 <span
+//                   className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${activityDot(item.event_type)}`}
+//                 />
+
+//                 <div className="min-w-0 flex-1">
+//                   {/* Timestamp + type label */}
+//                   <p className="text-[10px] text-slate-400 flex items-center gap-1.5">
+//                     <span>{activityAge(item.created_at)}</span>
+//                     <span className="inline-block h-1 w-1 rounded-full bg-slate-200" />
+//                     <span className="font-medium">{activityTypeLabel(item.event_type)}</span>
+//                   </p>
+
+//                   {/* Main title */}
+//                   <p className="text-sm text-slate-700 leading-snug">{item.title}</p>
+
+//                   {/* Secondary line — appointment time from meta JSONB */}
+//                   {sub && (
+//                     <p className="text-xs text-slate-400 truncate">{sub}</p>
+//                   )}
+//                 </div>
+//               </div>
+//             );
+//           })
+//         )}
+
+//         <Button className="w-full bg-slate-800 text-white hover:bg-slate-700">
+//           Return Call
+//         </Button>
+//       </CardContent>
+//     </Card>
+//   );
+// }
+
 // // ─── SchedulePage ─────────────────────────────────────────────────────────────
 
 // export default function SchedulePage() {
@@ -423,23 +561,19 @@
 //   }, [doctors, doctorFilter]);
 
 //   /**
-//    * getAppointment: resolve which appointment (if any) sits in a grid cell.
+//    * buildSlotMap: for a given doctor, returns a map of
+//    *   TIME_SLOT_LABEL → appointment (or undefined)
 //    *
 //    * Priority:
-//    *   1. Exact HH:MM:SS match against the slot's converted DB time.
-//    *   2. Hour-level fallback — finds any appointment whose start hour equals
-//    *      the slot hour (handles consultations that start a few minutes off the
-//    *      top of the hour, e.g. 09:07:00 shows in the 09:00 AM row).
+//    *   1. Exact HH:MM:SS match
+//    *   2. Hour-level fallback (handles appointments starting a few minutes
+//    *      past the hour, e.g. 09:07:00 → shown in "09:00 AM" row)
 //    *
-//    * We keep track of which appointments have already been "claimed" by earlier
-//    * slots so the same appointment doesn't appear in multiple rows.
+//    * Already-claimed appointments are tracked so the same appointment
+//    * doesn't appear in multiple rows.
 //    */
-//   function getAppointmentsForDoctor(doctorId) {
-//     return appointmentMap[doctorId] || {};
-//   }
-
 //   function buildSlotMap(doctorId) {
-//     const doctorAppts = getAppointmentsForDoctor(doctorId);
+//     const doctorAppts = appointmentMap[doctorId] || {};
 //     const claimed     = new Set();
 //     const slotMap     = {};
 
@@ -470,7 +604,6 @@
 //     return slotMap;
 //   }
 
-//   // Pre-build slot maps for all visible doctors so we don't recompute per-cell
 //   const doctorSlotMaps = useMemo(() => {
 //     const maps = {};
 //     for (const doctor of visibleDoctors) {
@@ -487,13 +620,15 @@
 //         <main className="flex flex-col gap-6 px-8 py-6">
 //           <Navbar activeMonitoring={activeMonitoring} onToggleMonitoring={setActiveMonitoring} />
 
-//           {/* ── Header ── */}
+//           {/* ── Page header ── */}
 //           <div className="flex flex-wrap items-center justify-between gap-4">
 //             <div>
 //               <h1 className="text-xl font-semibold">Clinic Schedule</h1>
 //               <p className="text-sm text-slate-500">{formattedDate}</p>
 //             </div>
+
 //             <div className="flex items-center gap-3 flex-wrap">
+//               {/* Date picker */}
 //               <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1">
 //                 <FiCalendar className="text-slate-400 shrink-0" />
 //                 <Input
@@ -512,6 +647,7 @@
 //                 </Button>
 //               </div>
 
+//               {/* Day navigation */}
 //               <Button variant="outline" className="rounded-full px-3" onClick={() => shiftDate(-1)}>
 //                 <FiChevronLeft />
 //               </Button>
@@ -526,6 +662,7 @@
 //                 <FiChevronRight />
 //               </Button>
 
+//               {/* Manual refresh */}
 //               <Button
 //                 variant="outline"
 //                 size="sm"
@@ -543,20 +680,23 @@
 //             </div>
 //           </div>
 
-//           {/* ── Error Banner ── */}
+//           {/* ── Error banner ── */}
 //           {error && (
 //             <div className="flex items-center gap-3 rounded-2xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700">
 //               <FiAlertCircle className="shrink-0" />
 //               <span>Failed to load schedule: {error}</span>
-//               <button onClick={refresh} className="ml-auto text-xs underline">Retry</button>
+//               <button onClick={refresh} className="ml-auto text-xs underline">
+//                 Retry
+//               </button>
 //             </div>
 //           )}
 
 //           <div className="grid gap-6 lg:grid-cols-[2.2fr_1fr]">
 
-//             {/* ── Schedule Grid ── */}
+//             {/* ── Schedule grid ── */}
 //             <Card className="border-slate-100 shadow-sm overflow-x-auto">
 //               <CardHeader className="pb-2">
+//                 {/* Doctor filter pills */}
 //                 <div className="flex flex-wrap items-center gap-2 mb-4">
 //                   <Button
 //                     variant={doctorFilter === "all" ? "default" : "outline"}
@@ -570,7 +710,9 @@
 //                       key={d.id}
 //                       variant={doctorFilter === d.name ? "default" : "outline"}
 //                       className="rounded-full px-4 text-xs"
-//                       onClick={() => setDoctorFilter(doctorFilter === d.name ? "all" : d.name)}
+//                       onClick={() =>
+//                         setDoctorFilter(doctorFilter === d.name ? "all" : d.name)
+//                       }
 //                     >
 //                       Dr. {d.name.split(" ").pop()}
 //                     </Button>
@@ -582,10 +724,13 @@
 //                   <div className="flex gap-3">
 //                     <div className="w-[90px] shrink-0" />
 //                     {[1, 2, 3].map((i) => (
-//                       <div key={i} className="flex-1 h-16 animate-pulse rounded-xl bg-slate-100" />
+//                       <div
+//                         key={i}
+//                         className="flex-1 h-16 animate-pulse rounded-xl bg-slate-100"
+//                       />
 //                     ))}
 //                   </div>
-//                 ) : visibleDoctors.length === 0 ? null : (
+//                 ) : visibleDoctors.length > 0 ? (
 //                   <div
 //                     className="grid gap-3 text-xs text-slate-500"
 //                     style={{
@@ -594,13 +739,18 @@
 //                   >
 //                     <span />
 //                     {visibleDoctors.map((doctor) => (
-//                       <div key={doctor.id} className="rounded-xl border border-slate-100 bg-white p-3">
+//                       <div
+//                         key={doctor.id}
+//                         className="rounded-xl border border-slate-100 bg-white p-3"
+//                       >
 //                         <div className="flex items-center gap-2">
 //                           <div className="grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600 shrink-0">
 //                             {initials(doctor.name)}
 //                           </div>
 //                           <div className="min-w-0">
-//                             <p className="text-sm font-semibold text-slate-800 truncate">{doctor.name}</p>
+//                             <p className="text-sm font-semibold text-slate-800 truncate">
+//                               {doctor.name}
+//                             </p>
 //                             <p className="text-[10px] text-slate-400">{doctor.speciality}</p>
 //                           </div>
 //                         </div>
@@ -610,7 +760,7 @@
 //                       </div>
 //                     ))}
 //                   </div>
-//                 )}
+//                 ) : null}
 //               </CardHeader>
 
 //               <CardContent>
@@ -620,7 +770,10 @@
 //                       <div key={i} className="flex gap-3">
 //                         <div className="w-[90px] h-[70px] animate-pulse rounded-xl bg-slate-100 shrink-0" />
 //                         {[1, 2, 3].map((j) => (
-//                           <div key={j} className="flex-1 h-[70px] animate-pulse rounded-xl bg-slate-50" />
+//                           <div
+//                             key={j}
+//                             className="flex-1 h-[70px] animate-pulse rounded-xl bg-slate-50"
+//                           />
 //                         ))}
 //                       </div>
 //                     ))}
@@ -640,7 +793,9 @@
 //                           gridTemplateColumns: `90px repeat(${visibleDoctors.length}, minmax(160px, 1fr))`,
 //                         }}
 //                       >
-//                         <div className="text-xs font-semibold text-slate-400 pt-2">{slot}</div>
+//                         <div className="text-xs font-semibold text-slate-400 pt-2">
+//                           {slot}
+//                         </div>
 //                         {visibleDoctors.map((doctor) => {
 //                           const appt = doctorSlotMaps[doctor.id]?.[slot] ?? null;
 //                           return (
@@ -664,52 +819,10 @@
 //               </CardContent>
 //             </Card>
 
-//             {/* ── Right Column ── */}
+//             {/* ── Right column ── */}
 //             <div className="flex flex-col gap-6">
 //               <PatientLookup />
-
-//               {/* ── Live Activity ── */}
-//               <Card className="border-slate-100 shadow-sm">
-//                 <CardHeader className="flex flex-row items-center justify-between">
-//                   <div className="flex items-center gap-2">
-//                     <CardTitle>Live Activity</CardTitle>
-//                     <Badge
-//                       variant={wsStatus === "open" ? "success" : "warning"}
-//                       className="text-[9px]"
-//                     >
-//                       {wsStatus === "open" ? "Live" : "Reconnecting…"}
-//                     </Badge>
-//                   </div>
-//                   <FiActivity
-//                     className={`h-4 w-4 ${wsStatus === "open" ? "text-emerald-500" : "text-slate-300"}`}
-//                   />
-//                 </CardHeader>
-//                 <CardContent className="space-y-4">
-//                   {activities.length === 0 ? (
-//                     <p className="text-xs text-slate-400 text-center py-6">
-//                       No recent activity yet.
-//                     </p>
-//                   ) : (
-//                     activities.map((item) => (
-//                       <div key={item.id} className="flex gap-3 items-start">
-//                         <span
-//                           className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${activityDot(item.event_type)}`}
-//                         />
-//                         <div className="min-w-0">
-//                           <p className="text-xs text-slate-400">{activityAge(item.created_at)}</p>
-//                           <p className="text-sm text-slate-700 leading-snug">{item.title}</p>
-//                           {item.meta && (
-//                             <p className="text-xs text-slate-400 truncate">{item.meta}</p>
-//                           )}
-//                         </div>
-//                       </div>
-//                     ))
-//                   )}
-//                   <Button className="w-full bg-slate-800 text-white hover:bg-slate-700">
-//                     Return Call
-//                   </Button>
-//                 </CardContent>
-//               </Card>
+//               <LiveActivityPanel activities={activities} wsStatus={wsStatus} />
 //             </div>
 //           </div>
 //         </main>
@@ -735,7 +848,6 @@ import {
   FiCheck, FiUserX,
 } from "react-icons/fi";
 import { useClinicSchedule, usePatientSearch } from "../hooks/useSchedule";
-import { CLINIC_ID } from "../lib/api";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -803,16 +915,11 @@ function activityAge(createdAt) {
   return `${Math.floor(mins / 60)}h ago`;
 }
 
-/**
- * Maps activity event_type → a Tailwind background colour class.
- * "completion" is now its own type (previously it was incorrectly logged
- * as "manual_booking"), so it gets a distinct colour here.
- */
 function activityDot(type) {
   const map = {
     agent_booking:  "bg-emerald-400",
     manual_booking: "bg-sky-400",
-    completion:     "bg-emerald-500",   // ← fixed: was missing, fell through to grey
+    completion:     "bg-emerald-500",
     active_call:    "bg-amber-400 animate-pulse",
     cancellation:   "bg-red-400",
     reschedule:     "bg-violet-400",
@@ -820,10 +927,6 @@ function activityDot(type) {
   return map[type] || "bg-slate-300";
 }
 
-/**
- * Maps activity event_type → a short human-readable label shown
- * next to the coloured dot in the Live Activity panel.
- */
 function activityTypeLabel(type) {
   const map = {
     agent_booking:  "Agent booked",
@@ -836,20 +939,9 @@ function activityTypeLabel(type) {
   return map[type] || type;
 }
 
-/**
- * Extracts a concise secondary line from the activity's meta JSONB object.
- * The server now stores meta as a structured object, e.g.:
- *   { appointment_start, appointment_end, doctor_name, ... }
- * We display the appointment time in IST.
- */
 function metaSubline(meta) {
   if (!meta) return null;
-
-  // Server returns JSONB — pg driver deserialises it to a plain JS object,
-  // but over WebSocket the row is re-serialised to JSON string and then
-  // parsed again, so meta will always be a plain object at this point.
   const obj = typeof meta === "string" ? JSON.parse(meta) : meta;
-
   if (obj.appointment_start) {
     try {
       return new Date(obj.appointment_start).toLocaleTimeString("en-IN", {
@@ -860,9 +952,7 @@ function metaSubline(meta) {
       });
     } catch (_) {}
   }
-
   if (obj.doctor_name) return `Dr. ${obj.doctor_name}`;
-
   return null;
 }
 
@@ -872,15 +962,7 @@ const TIME_SLOTS = [
 ];
 
 // ─── useLiveActivity ──────────────────────────────────────────────────────────
-//
-// Connects to the Express WebSocket server at /ws/activity.
-//
-// In development Next.js runs on port 3000 and Express on port 4002, so
-// window.location.host would point to the wrong server. Set the env var
-//   NEXT_PUBLIC_WS_HOST=localhost:4002
-// in .env.local to override. In production (single host / reverse proxy)
-// leave it unset and it falls back to window.location.host.
-//
+
 function useLiveActivity() {
   const [activities, setActivities] = useState([]);
   const [wsStatus, setWsStatus]     = useState("connecting");
@@ -892,19 +974,19 @@ function useLiveActivity() {
   useEffect(() => {
     mountedRef.current = true;
 
-    // ── Seed from REST on mount ───────────────────────────────────────────────
-    fetch(`/api/activity?limit=15&clinic_id=${CLINIC_ID}`)
+    const clinicId = localStorage.getItem("auvia_clinic_id") || "";
+
+    // Seed from REST on mount
+    fetch(`/api/activity?limit=15&clinic_id=${clinicId}`)
       .then((r) => r.json())
       .then((json) => {
         if (json.success && mountedRef.current) setActivities(json.data);
       })
       .catch(() => {});
 
-    // ── WebSocket connection with exponential back-off reconnect ──────────────
     function connectWs() {
       if (!mountedRef.current) return;
 
-      // Tear down any existing socket cleanly
       if (wsRef.current) {
         wsRef.current.onclose = null;
         wsRef.current.onerror = null;
@@ -913,8 +995,6 @@ function useLiveActivity() {
       }
 
       const proto  = window.location.protocol === "https:" ? "wss" : "ws";
-      // NEXT_PUBLIC_WS_HOST lets you point at the Express server in dev.
-      // Falls back to the current host (works in production with a reverse proxy).
       const wsHost = process.env.NEXT_PUBLIC_WS_HOST || window.location.host;
       const ws     = new WebSocket(`${proto}://${wsHost}/ws/activity`);
       wsRef.current = ws;
@@ -930,7 +1010,6 @@ function useLiveActivity() {
         try {
           const msg = JSON.parse(e.data);
           if (msg.type === "activity" && mountedRef.current) {
-            // Prepend new event and keep the list at ≤ 20 items
             setActivities((prev) => [msg.data, ...prev].slice(0, 20));
           }
         } catch (_) {}
@@ -939,7 +1018,6 @@ function useLiveActivity() {
       const scheduleReconnect = () => {
         if (!mountedRef.current) return;
         setWsStatus("closed");
-        // Exponential back-off capped at 30 s
         const delay = Math.min(3_000 * Math.pow(2, retryCount.current), 30_000);
         retryCount.current += 1;
         reconnectTimer.current = setTimeout(connectWs, delay);
@@ -953,7 +1031,6 @@ function useLiveActivity() {
       };
     }
 
-    // Small delay so the component is fully mounted before we open the socket
     const initTimer = setTimeout(connectWs, 150);
 
     return () => {
@@ -973,24 +1050,13 @@ function useLiveActivity() {
 }
 
 // ─── AppointmentCell ──────────────────────────────────────────────────────────
-//
-// Renders a single appointment card inside a schedule grid cell.
-//
-// UX details:
-//   • localStatus mirrors appt.status and flips immediately on button click
-//     (optimistic update). If the PATCH fails, the hook rolls it back.
-//   • Both buttons are disabled while a PATCH is in-flight to prevent
-//     double-clicks sending two concurrent requests.
-//   • A 2-second success toast appears after a confirmed update.
-//   • Inline error message shown if the PATCH fails.
-//
+
 function AppointmentCell({ appt, onStatusChange }) {
   const [updating, setUpdating]       = useState(false);
   const [errorMsg, setErrorMsg]       = useState(null);
   const [toastMsg, setToastMsg]       = useState(null);
   const [localStatus, setLocalStatus] = useState(appt.status);
 
-  // Sync localStatus when the parent re-fetches after a server round-trip
   useEffect(() => {
     setLocalStatus(appt.status);
   }, [appt.status]);
@@ -1001,7 +1067,7 @@ function AppointmentCell({ appt, onStatusChange }) {
     setErrorMsg(null);
 
     const previous = localStatus;
-    setLocalStatus(newStatus); // optimistic flip
+    setLocalStatus(newStatus);
 
     try {
       await onStatusChange(appt.id, newStatus);
@@ -1009,7 +1075,7 @@ function AppointmentCell({ appt, onStatusChange }) {
       setToastMsg(label);
       setTimeout(() => setToastMsg(null), 2_000);
     } catch (err) {
-      setLocalStatus(previous); // rollback
+      setLocalStatus(previous);
       setErrorMsg(err?.message || "Update failed — please retry");
     } finally {
       setUpdating(false);
@@ -1021,14 +1087,12 @@ function AppointmentCell({ appt, onStatusChange }) {
   return (
     <div className="relative h-full rounded-xl border border-slate-200 bg-white p-3 transition-transform duration-200 hover:-translate-y-0.5 hover:shadow">
 
-      {/* Success toast */}
       {toastMsg && (
         <div className="absolute inset-x-2 top-2 z-10 flex items-center justify-center rounded-lg bg-emerald-500 px-2 py-1 text-[10px] font-semibold text-white shadow-sm">
           {toastMsg}
         </div>
       )}
 
-      {/* Header: patient name + status badge */}
       <div className="flex items-start justify-between gap-1">
         <p className="text-sm font-semibold text-slate-800 leading-tight">
           {appt.patient_name}
@@ -1038,10 +1102,8 @@ function AppointmentCell({ appt, onStatusChange }) {
         </Badge>
       </div>
 
-      {/* Reason */}
       <p className="text-xs text-slate-500 mt-0.5 truncate">{appt.reason || "—"}</p>
 
-      {/* Inline error */}
       {errorMsg && (
         <p className="mt-1 flex items-center gap-1 text-[10px] text-red-500">
           <FiAlertCircle className="shrink-0" />
@@ -1049,7 +1111,6 @@ function AppointmentCell({ appt, onStatusChange }) {
         </p>
       )}
 
-      {/* Footer: time + action buttons / spinner */}
       <div className="mt-2 flex items-center justify-between gap-1">
         <div className="flex items-center gap-1 text-[10px] text-slate-400 min-w-0">
           <FiCalendar className="shrink-0" />
@@ -1211,23 +1272,16 @@ function LiveActivityPanel({ activities, wsStatus }) {
             const sub = metaSubline(item.meta);
             return (
               <div key={item.id} className="flex gap-3 items-start">
-                {/* Coloured dot */}
                 <span
                   className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${activityDot(item.event_type)}`}
                 />
-
                 <div className="min-w-0 flex-1">
-                  {/* Timestamp + type label */}
                   <p className="text-[10px] text-slate-400 flex items-center gap-1.5">
                     <span>{activityAge(item.created_at)}</span>
                     <span className="inline-block h-1 w-1 rounded-full bg-slate-200" />
                     <span className="font-medium">{activityTypeLabel(item.event_type)}</span>
                   </p>
-
-                  {/* Main title */}
                   <p className="text-sm text-slate-700 leading-snug">{item.title}</p>
-
-                  {/* Secondary line — appointment time from meta JSONB */}
                   {sub && (
                     <p className="text-xs text-slate-400 truncate">{sub}</p>
                   )}
@@ -1279,18 +1333,6 @@ export default function SchedulePage() {
     );
   }, [doctors, doctorFilter]);
 
-  /**
-   * buildSlotMap: for a given doctor, returns a map of
-   *   TIME_SLOT_LABEL → appointment (or undefined)
-   *
-   * Priority:
-   *   1. Exact HH:MM:SS match
-   *   2. Hour-level fallback (handles appointments starting a few minutes
-   *      past the hour, e.g. 09:07:00 → shown in "09:00 AM" row)
-   *
-   * Already-claimed appointments are tracked so the same appointment
-   * doesn't appear in multiple rows.
-   */
   function buildSlotMap(doctorId) {
     const doctorAppts = appointmentMap[doctorId] || {};
     const claimed     = new Set();
@@ -1300,14 +1342,12 @@ export default function SchedulePage() {
       const dbTime   = labelToDbTime(slot);
       const slotHour = parseInt(dbTime.split(":")[0], 10);
 
-      // 1. Exact match
       if (doctorAppts[dbTime] && !claimed.has(doctorAppts[dbTime].id)) {
         slotMap[slot] = doctorAppts[dbTime];
         claimed.add(doctorAppts[dbTime].id);
         continue;
       }
 
-      // 2. Hour-level fallback
       for (const [timeKey, appt] of Object.entries(doctorAppts)) {
         if (
           parseInt(timeKey.split(":")[0], 10) === slotHour &&
@@ -1347,7 +1387,6 @@ export default function SchedulePage() {
             </div>
 
             <div className="flex items-center gap-3 flex-wrap">
-              {/* Date picker */}
               <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1">
                 <FiCalendar className="text-slate-400 shrink-0" />
                 <Input
@@ -1366,7 +1405,6 @@ export default function SchedulePage() {
                 </Button>
               </div>
 
-              {/* Day navigation */}
               <Button variant="outline" className="rounded-full px-3" onClick={() => shiftDate(-1)}>
                 <FiChevronLeft />
               </Button>
@@ -1381,7 +1419,6 @@ export default function SchedulePage() {
                 <FiChevronRight />
               </Button>
 
-              {/* Manual refresh */}
               <Button
                 variant="outline"
                 size="sm"
@@ -1415,7 +1452,6 @@ export default function SchedulePage() {
             {/* ── Schedule grid ── */}
             <Card className="border-slate-100 shadow-sm overflow-x-auto">
               <CardHeader className="pb-2">
-                {/* Doctor filter pills */}
                 <div className="flex flex-wrap items-center gap-2 mb-4">
                   <Button
                     variant={doctorFilter === "all" ? "default" : "outline"}
@@ -1438,7 +1474,6 @@ export default function SchedulePage() {
                   ))}
                 </div>
 
-                {/* Doctor header row */}
                 {loading ? (
                   <div className="flex gap-3">
                     <div className="w-[90px] shrink-0" />
