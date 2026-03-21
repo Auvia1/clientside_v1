@@ -1087,25 +1087,17 @@ function WeekView({ doctor, anchorDate, onShiftWeek }) {
   const todayStr = new Date().toISOString().slice(0, 10);
 
   function buildDaySlotMap(appts = []) {
-    const byTime  = {};
-    for (const a of appts) { if (a.start_time) byTime[a.start_time] = a; }
-    const claimed = new Set();
+    // Normalise start_time to "HH:MM" (toLocaleTimeString may omit leading zero)
+    function toHHMM(t) {
+      if (!t) return "";
+      const parts = t.split(":");
+      return String(parseInt(parts[0], 10)).padStart(2, "0") + ":" + (parts[1] || "00");
+    }
     const slotMap = {};
     for (const slot of TIME_SLOTS) {
-      const dbTime   = labelToDbTime(slot);
-      const slotHour = parseInt(dbTime.split(":")[0], 10);
-      if (byTime[dbTime] && !claimed.has(byTime[dbTime].id)) {
-        slotMap[slot] = byTime[dbTime];
-        claimed.add(byTime[dbTime].id);
-        continue;
-      }
-      for (const [tk, appt] of Object.entries(byTime)) {
-        if (parseInt(tk.split(":")[0], 10) === slotHour && !claimed.has(appt.id)) {
-          slotMap[slot] = appt;
-          claimed.add(appt.id);
-          break;
-        }
-      }
+      const slotHHMM = labelToDbTime(slot).slice(0, 5); // always "HH:MM"
+      const match = appts.find((a) => toHHMM(a.start_time) === slotHHMM);
+      if (match) slotMap[slot] = match;
     }
     return slotMap;
   }
@@ -1352,24 +1344,19 @@ export default function SchedulePage() {
   const visibleDoctors = doctors; // always show all in grid mode
 
   function buildSlotMap(doctorId) {
-    const doctorAppts = appointmentMap[doctorId] || {};
-    const claimed     = new Set();
-    const slotMap     = {};
+    // appointmentMap[doctorId] is keyed by raw start_time from toLocaleTimeString
+    // which may be "8:00:00" (no leading zero). Normalise both sides to "HH:MM".
+    function toHHMM(t) {
+      if (!t) return "";
+      const parts = t.split(":");
+      return String(parseInt(parts[0], 10)).padStart(2, "0") + ":" + (parts[1] || "00");
+    }
+    const appts   = Object.values(appointmentMap[doctorId] || {});
+    const slotMap = {};
     for (const slot of TIME_SLOTS) {
-      const dbTime   = labelToDbTime(slot);
-      const slotHour = parseInt(dbTime.split(":")[0], 10);
-      if (doctorAppts[dbTime] && !claimed.has(doctorAppts[dbTime].id)) {
-        slotMap[slot] = doctorAppts[dbTime];
-        claimed.add(doctorAppts[dbTime].id);
-        continue;
-      }
-      for (const [timeKey, appt] of Object.entries(doctorAppts)) {
-        if (parseInt(timeKey.split(":")[0], 10) === slotHour && !claimed.has(appt.id)) {
-          slotMap[slot] = appt;
-          claimed.add(appt.id);
-          break;
-        }
-      }
+      const slotHHMM = labelToDbTime(slot).slice(0, 5); // always "HH:MM"
+      const match = appts.find((a) => toHHMM(a.start_time) === slotHHMM);
+      if (match) slotMap[slot] = match;
     }
     return slotMap;
   }
