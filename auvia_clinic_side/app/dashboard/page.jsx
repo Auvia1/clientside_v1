@@ -932,8 +932,12 @@ export default function DashboardPage() {
                           <div className="min-w-0">
                             <p className="text-xs text-slate-400">{activityAge(item.created_at)}</p>
                             <p className="text-sm text-slate-700 leading-snug">{item.title}</p>
-                            {item.meta && (
-                              <p className="text-xs text-slate-400 truncate">{item.meta}</p>
+                            {item.meta?.appointment_start && (
+                              <p className="text-xs text-slate-400 truncate">
+                                {new Date(item.meta.appointment_start).toLocaleTimeString("en-IN", {
+                                  hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata",
+                                })}
+                              </p>
                             )}
                           </div>
                         </div>
