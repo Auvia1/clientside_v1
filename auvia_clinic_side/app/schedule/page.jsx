@@ -1034,46 +1034,48 @@ function AppointmentCell({ appt, onStatusChange }) {
   const isActionable = localStatus === "confirmed" || localStatus === "pending";
 
   return (
-    <div className="relative h-full rounded-xl border border-slate-200 bg-white p-3 transition-transform duration-200 hover:-translate-y-0.5 hover:shadow">
-      {toastMsg && (
-        <div className="absolute inset-x-2 top-2 z-10 flex items-center justify-center rounded-lg bg-emerald-500 px-2 py-1 text-[10px] font-semibold text-white shadow-sm">
-          {toastMsg}
-        </div>
-      )}
-      <div className="flex items-start justify-between gap-1">
-        <p className="text-sm font-semibold text-slate-800 leading-tight">{appt.patient_name}</p>
-        <Badge variant={statusVariant(localStatus)} className="text-[9px] shrink-0">
-          {statusLabel(localStatus)}
-        </Badge>
-      </div>
-      <p className="text-xs text-slate-500 mt-0.5 truncate">{appt.reason || "—"}</p>
-      {errorMsg && (
-        <p className="mt-1 flex items-center gap-1 text-[10px] text-red-500">
-          <FiAlertCircle className="shrink-0" /><span className="truncate">{errorMsg}</span>
-        </p>
-      )}
-      <div className="mt-2 flex items-center justify-between gap-1">
-        <div className="flex items-center gap-1 text-[10px] text-slate-400 min-w-0">
-          <FiCalendar className="shrink-0" />
-          <span className="truncate">
-            {formatTimeLabel(appt.start_time)} – {formatTimeLabel(appt.end_time)}
-          </span>
-        </div>
-        {updating && <FiLoader className="h-3 w-3 shrink-0 animate-spin text-slate-400" />}
-        {isActionable && !updating && (
-          <div className="flex gap-1 shrink-0">
-            <button onClick={() => handleChange("completed")} disabled={updating}
-              className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100 active:scale-95 disabled:opacity-50 transition-all duration-150">
-              <FiCheck className="h-2.5 w-2.5" />Done
-            </button>
-            <button onClick={() => handleChange("no_show")} disabled={updating}
-              className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium bg-amber-50 text-amber-700 hover:bg-amber-100 active:scale-95 disabled:opacity-50 transition-all duration-150">
-              <FiUserX className="h-2.5 w-2.5" />No-show
-            </button>
+    <Card className="relative h-full transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-md">
+      <CardContent className="p-3">
+        {toastMsg && (
+          <div className="absolute inset-x-2 top-2 z-10 flex items-center justify-center rounded-lg bg-emerald-500 px-2 py-1 text-[10px] font-semibold text-white shadow-sm">
+            {toastMsg}
           </div>
         )}
-      </div>
-    </div>
+        <div className="flex items-start justify-between gap-1">
+          <p className="text-sm font-semibold text-slate-800 leading-tight">{appt.patient_name}</p>
+          <Badge variant={statusVariant(localStatus)} className="text-[9px] shrink-0">
+            {statusLabel(localStatus)}
+          </Badge>
+        </div>
+        <p className="text-xs text-slate-500 mt-0.5 truncate">{appt.reason || "—"}</p>
+        {errorMsg && (
+          <p className="mt-1 flex items-center gap-1 text-[10px] text-red-500">
+            <FiAlertCircle className="shrink-0" /><span className="truncate">{errorMsg}</span>
+          </p>
+        )}
+        <div className="mt-2 flex items-center justify-between gap-1">
+          <div className="flex items-center gap-1 text-[10px] text-slate-400 min-w-0">
+            <FiCalendar className="shrink-0" />
+            <span className="truncate">
+              {formatTimeLabel(appt.start_time)} – {formatTimeLabel(appt.end_time)}
+            </span>
+          </div>
+          {updating && <FiLoader className="h-3 w-3 shrink-0 animate-spin text-slate-400" />}
+          {isActionable && !updating && (
+            <div className="flex gap-1 shrink-0">
+              <button onClick={() => handleChange("completed")} disabled={updating}
+                className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100 active:scale-95 disabled:opacity-50 transition-all duration-150">
+                <FiCheck className="h-2.5 w-2.5" />Done
+              </button>
+              <button onClick={() => handleChange("no_show")} disabled={updating}
+                className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium bg-amber-50 text-amber-700 hover:bg-amber-100 active:scale-95 disabled:opacity-50 transition-all duration-150">
+                <FiUserX className="h-2.5 w-2.5" />No-show
+              </button>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1168,51 +1170,51 @@ function WeekView({ doctor, anchorDate, onShiftWeek }) {
               const isToday = ymd === todayStr;
               const count   = (weekData[ymd] || []).length;
               return (
-                <div
+                <Card
                   key={ymd}
-                  className={`rounded-xl border p-3 ${
-                    isToday ? "border-emerald-300 bg-emerald-50" : "border-slate-100 bg-white"
-                  }`}
+                  className={isToday ? "border-emerald-300 bg-emerald-50" : ""}
                 >
-                  {/* Avatar + day/date — mirrors All Doctors card layout */}
-                  <div className="flex items-center gap-2">
-                    <div
-                      className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-semibold ${
-                        isToday ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"
-                      }`}
-                    >
-                      {initials(doctor.name)}
-                    </div>
-                    <div className="min-w-0">
-                      <p
-                        className={`text-[11px] font-semibold uppercase tracking-wide ${
-                          isToday ? "text-emerald-700" : "text-slate-500"
+                  <CardContent className="p-3">
+                    {/* Avatar + day/date — mirrors All Doctors card layout */}
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-semibold ${
+                          isToday ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"
                         }`}
                       >
-                        {DAY_LABELS[i]}
-                      </p>
-                      <p
-                        className={`text-sm font-bold leading-none ${
-                          isToday ? "text-emerald-700" : "text-slate-800"
-                        }`}
-                      >
-                        {d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
-                      </p>
+                        {initials(doctor.name)}
+                      </div>
+                      <div className="min-w-0">
+                        <p
+                          className={`text-[11px] font-semibold uppercase tracking-wide ${
+                            isToday ? "text-emerald-700" : "text-slate-500"
+                          }`}
+                        >
+                          {DAY_LABELS[i]}
+                        </p>
+                        <p
+                          className={`text-sm font-bold leading-none ${
+                            isToday ? "text-emerald-700" : "text-slate-800"
+                          }`}
+                        >
+                          {d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  {/* Appointment count badge */}
-                  <div className="mt-2">
-                    {count > 0 ? (
-                      <span className="inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-semibold text-emerald-700">
-                        {count} appt{count !== 1 ? "s" : ""}
-                      </span>
-                    ) : (
-                      <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-semibold text-slate-400">
-                        Free
-                      </span>
-                    )}
-                  </div>
-                </div>
+                    {/* Appointment count badge */}
+                    <div className="mt-2">
+                      {count > 0 ? (
+                        <span className="inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-semibold text-emerald-700">
+                          {count} appt{count !== 1 ? "s" : ""}
+                        </span>
+                      ) : (
+                        <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-semibold text-slate-400">
+                          Free
+                        </span>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
               );
             })}
           </div>
@@ -1230,9 +1232,9 @@ function WeekView({ doctor, anchorDate, onShiftWeek }) {
                   const ymd  = toYMD(d);
                   const appt = slotMaps[ymd]?.[slot] ?? null;
                   return (
-                    <div
+                    <Card
                       key={ymd}
-                      className="min-h-[70px] rounded-xl border border-slate-100 bg-white/60"
+                      className="min-h-[70px] bg-white/60"
                     >
                       {appt && (
                         <AppointmentCell
@@ -1240,7 +1242,7 @@ function WeekView({ doctor, anchorDate, onShiftWeek }) {
                           onStatusChange={(id, status) => appointmentsApi.updateStatus(id, status)}
                         />
                       )}
-                    </div>
+                    </Card>
                   );
                 })}
               </div>
@@ -1506,20 +1508,22 @@ export default function SchedulePage() {
                       style={{ gridTemplateColumns: `90px repeat(${visibleDoctors.length}, minmax(160px, 1fr))` }}>
                       <span />
                       {visibleDoctors.map((doctor) => (
-                        <div key={doctor.id} className="rounded-xl border border-slate-100 bg-white p-3">
-                          <div className="flex items-center gap-2">
-                            <div className="grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600 shrink-0">
-                              {initials(doctor.name)}
+                        <Card key={doctor.id}>
+                          <CardContent className="p-3">
+                            <div className="flex items-center gap-2">
+                              <div className="grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600 shrink-0">
+                                {initials(doctor.name)}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold text-slate-800 truncate">{doctor.name}</p>
+                                <p className="text-[10px] text-slate-400">{doctor.speciality}</p>
+                              </div>
                             </div>
-                            <div className="min-w-0">
-                              <p className="text-sm font-semibold text-slate-800 truncate">{doctor.name}</p>
-                              <p className="text-[10px] text-slate-400">{doctor.speciality}</p>
-                            </div>
-                          </div>
-                          <p className="mt-1.5 text-[10px] text-slate-400">
-                            {doctor.consultation_duration_minutes}min slots
-                          </p>
-                        </div>
+                            <p className="mt-1.5 text-[10px] text-slate-400">
+                              {doctor.consultation_duration_minutes}min slots
+                            </p>
+                          </CardContent>
+                        </Card>
                       ))}
                     </div>
                   ) : null
@@ -1560,10 +1564,12 @@ export default function SchedulePage() {
                         {visibleDoctors.map((doctor) => {
                           const appt = doctorSlotMaps[doctor.id]?.[slot] ?? null;
                           return (
-                            <div key={`${slot}-${doctor.id}`}
-                              className="min-h-[70px] rounded-xl border border-slate-100 bg-white/60">
+                            <Card
+                              key={`${slot}-${doctor.id}`}
+                              className="min-h-[70px] bg-white/60"
+                            >
                               {appt && <AppointmentCell appt={appt} onStatusChange={updateStatus} />}
-                            </div>
+                            </Card>
                           );
                         })}
                       </div>
