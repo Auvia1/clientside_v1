@@ -14,10 +14,9 @@
 // import { Badge } from "../components/ui/badge";
 // import { Tabs, TabsList, TabsTrigger } from "../components/ui/tabs";
 // import { useSchedule } from "../hooks/useSchedule";
+// import { CLINIC_ID } from "../lib/api";
 
-// const CLINIC_ID = "433e6186-e408-4b01-bcad-1fa449b41d63";
-
-// // ─── Static Data (no API needed) ─────────────────────────────────────────────
+// // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 // function activityDot(type) {
 //   return {
@@ -35,52 +34,81 @@
 //   return `${Math.floor(mins / 60)}h ago`;
 // }
 
-// function useLiveActivity(clinic_id) {
+// // ─── useLiveActivity ──────────────────────────────────────────────────────────
+
+// function useLiveActivity() {
 //   const [activities, setActivities] = useState([]);
 //   const [wsStatus, setWsStatus]     = useState("connecting");
-//   const wsRef                       = useRef(null);
-//   const reconnectTimer              = useRef(null);
-
-//   function connect() {
-//     if (!clinic_id) return;
-
-//     fetch(`/api/activity?limit=10&clinic_id=${clinic_id}`)
-//       .then((r) => r.json())
-//       .then((json) => { if (json.success) setActivities(json.data); })
-//       .catch(() => {});
-
-//     const proto = window.location.protocol === "https:" ? "wss" : "ws";
-//     const backendHost = process.env.NEXT_PUBLIC_BACKEND_WS_HOST;
-//     const ws = new WebSocket(`${proto}://${backendHost}/ws/activity`);
-//     wsRef.current = ws;
-
-//     ws.onopen    = () => {
-//       setWsStatus("open");
-//       clearTimeout(reconnectTimer.current);
-//     };
-//     ws.onmessage = (e) => {
-//       try {
-//         const msg = JSON.parse(e.data);
-//         if (msg.type === "activity") {
-//           setActivities((prev) => [msg.data, ...prev].slice(0, 20));
-//         }
-//       } catch (_) {}
-//     };
-//     ws.onclose = () => {
-//       setWsStatus("closed");
-//       reconnectTimer.current = setTimeout(connect, 5000);
-//     };
-//     ws.onerror = () => ws.close();
-//   }
+//   const wsRef          = useRef(null);
+//   const reconnectTimer = useRef(null);
+//   const mountedRef     = useRef(false);
+//   const retryCount     = useRef(0);
 
 //   useEffect(() => {
-//     if (!clinic_id) return;
-//     connect();
+//     mountedRef.current = true;
+
+//     // Fetch initial activity via REST
+//     fetch(`/api/activity?limit=10&clinic_id=${CLINIC_ID}`)
+//       .then((r) => r.json())
+//       .then((json) => { if (json.success && mountedRef.current) setActivities(json.data); })
+//       .catch(() => {});
+
+//     function connectWs() {
+//       if (!mountedRef.current) return;
+
+//       // Tear down any existing socket before opening a new one
+//       if (wsRef.current) {
+//         wsRef.current.onclose = null;
+//         wsRef.current.onerror = null;
+//         wsRef.current.close();
+//         wsRef.current = null;
+//       }
+
+//       // Connect through the Next.js server (which proxies to private backend)
+//       const proto = window.location.protocol === "https:" ? "wss" : "ws";
+//       const ws    = new WebSocket(`${proto}://${window.location.host}/ws/activity`);
+//       wsRef.current = ws;
+
+//       ws.onopen = () => {
+//         if (!mountedRef.current) { ws.close(); return; }
+//         setWsStatus("open");
+//         retryCount.current = 0;
+//         clearTimeout(reconnectTimer.current);
+//       };
+//       ws.onmessage = (e) => {
+//         try {
+//           const msg = JSON.parse(e.data);
+//           if (msg.type === "activity" && mountedRef.current) {
+//             setActivities((prev) => [msg.data, ...prev].slice(0, 20));
+//           }
+//         } catch (_) {}
+//       };
+//       const scheduleReconnect = () => {
+//         if (!mountedRef.current) return;
+//         setWsStatus("closed");
+//         const delay = Math.min(3000 * Math.pow(2, retryCount.current), 30000);
+//         retryCount.current += 1;
+//         reconnectTimer.current = setTimeout(connectWs, delay);
+//       };
+//       ws.onclose = scheduleReconnect;
+//       ws.onerror = () => { ws.onclose = null; ws.close(); scheduleReconnect(); };
+//     }
+
+//     // Small delay so React Strict Mode double-invoke cleanup runs first
+//     const initTimer = setTimeout(connectWs, 150);
+
 //     return () => {
+//       mountedRef.current = false;
+//       clearTimeout(initTimer);
 //       clearTimeout(reconnectTimer.current);
-//       wsRef.current?.close();
+//       if (wsRef.current) {
+//         wsRef.current.onclose = null;
+//         wsRef.current.onerror = null;
+//         wsRef.current.close();
+//         wsRef.current = null;
+//       }
 //     };
-//   }, [clinic_id]);
+//   }, []);
 
 //   return { activities, wsStatus };
 // }
@@ -91,19 +119,20 @@
 //   if (!timeStr) return { time: "--:--", period: "" };
 //   const [h, m] = timeStr.split(":").map(Number);
 //   const period = h < 12 ? "AM" : "PM";
-//   const hour = h % 12 || 12;
+//   const hour   = h % 12 || 12;
 //   return {
-//     time: `${String(hour).padStart(2, "0")}:${String(m).padStart(2, "0")}`,
+//     time:   `${String(hour).padStart(2, "0")}:${String(m).padStart(2, "0")}`,
 //     period,
 //   };
 // }
 
 // function statusVariant(status) {
 //   const map = {
-//     booked: "info",
-//     completed: "success",
-//     cancelled: "destructive",
-//     no_show: "warning",
+//     confirmed:   "info",
+//     pending:     "warning",
+//     completed:   "success",
+//     cancelled:   "destructive",
+//     no_show:     "warning",
 //     rescheduled: "muted",
 //   };
 //   return map[status?.toLowerCase()] || "muted";
@@ -111,10 +140,11 @@
 
 // function statusLabel(status) {
 //   const map = {
-//     booked: "Confirmed",
-//     completed: "Completed",
-//     cancelled: "Cancelled",
-//     no_show: "No Show",
+//     confirmed:   "Confirmed",
+//     pending:     "Pending",
+//     completed:   "Completed",
+//     cancelled:   "Cancelled",
+//     no_show:     "No Show",
 //     rescheduled: "Rescheduled",
 //   };
 //   return map[status] || status;
@@ -134,6 +164,8 @@
 //       setUpdating(false);
 //     }
 //   }
+
+//   const isActionable = appt.status === "confirmed" || appt.status === "pending";
 
 //   return (
 //     <div
@@ -159,7 +191,7 @@
 //       <Badge variant={statusVariant(appt.status)}>{statusLabel(appt.status)}</Badge>
 
 //       <div className="flex gap-1 items-center">
-//         {appt.status === "booked" && !updating && (
+//         {isActionable && !updating && (
 //           <>
 //             <button
 //               title="Mark Completed"
@@ -187,16 +219,19 @@
 
 // export default function DashboardPage() {
 //   const today = new Date().toISOString().split("T")[0];
+
 //   const [activeMonitoring, setActiveMonitoring] = useState(true);
-//   const [providerFilter, setProviderFilter] = useState("all");
-//   const [showAll, setShowAll] = useState(false);
+//   const [providerFilter, setProviderFilter]     = useState("all");
+//   const [showAll, setShowAll]                   = useState(false);
+//   const [todayFormatted, setTodayFormatted]     = useState("");
+//   const [timeNow, setTimeNow]                   = useState("");
 
-//   const { activities, wsStatus } = useLiveActivity(CLINIC_ID);
+//   const { activities, wsStatus } = useLiveActivity();
 
-//   // ── LIVE from API ──────────────────────────────────────────────
 //   const { schedule, stats, loading, error, lastRefresh, refresh, updateAppointmentStatus } =
 //     useSchedule(today);
 
+//   // ── Filtered schedule ──
 //   const filteredSchedule = schedule.filter((appt) => {
 //     if (providerFilter === "all") return true;
 //     return appt.doctor_name?.toLowerCase().includes(
@@ -206,9 +241,7 @@
 
 //   const visibleSchedule = showAll ? filteredSchedule : filteredSchedule.slice(0, 5);
 
-//   const [todayFormatted, setTodayFormatted] = useState("");
-//   const [timeNow, setTimeNow] = useState("");
-
+//   // ── Date / time display ──
 //   useEffect(() => {
 //     const now = new Date();
 //     setTodayFormatted(now.toLocaleDateString("en-IN", {
@@ -218,6 +251,11 @@
 //       hour: "2-digit", minute: "2-digit",
 //     }));
 //   }, []);
+
+//   // ── Stats summary ──
+//   const totalAppts    = Number(stats?.total       || 0);
+//   const confirmedAppts = Number(stats?.confirmed  || 0);
+//   const completedAppts = Number(stats?.completed  || 0);
 
 //   return (
 //     <div className="min-h-screen bg-[#f5f8fb] text-slate-900">
@@ -261,7 +299,7 @@
 //             </div>
 //           </div>
 
-//           {/* ── Error Banner (only shows if API fails) ── */}
+//           {/* ── Error Banner ── */}
 //           {error && (
 //             <div className="flex items-center gap-3 rounded-2xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700">
 //               <AlertCircle className="h-4 w-4 shrink-0" />
@@ -273,7 +311,7 @@
 //           {/* ── Main Grid ── */}
 //           <div className="grid gap-6 lg:grid-cols-[2.1fr_1fr]">
 
-//             {/* ── LIVE: Today's Schedule ── */}
+//             {/* ── Today's Schedule ── */}
 //             <Card className="border-slate-100 shadow-sm transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-md">
 //               <CardHeader className="flex flex-row items-center justify-between">
 //                 <div className="flex items-center gap-2">
@@ -298,7 +336,7 @@
 //                 </Tabs>
 //               </CardHeader>
 //               <CardContent>
-//                 <div className="grid grid-cols-[80px_1.6fr_1fr_140px_90px] text-[11px] uppercase tracking-[0.2em] text-slate-400">
+//                 <div className="grid grid-cols-[80px_1.6fr_1fr_140px_90px] text-[11px] uppercase tracking-[0.2em] text-slate-400 px-4">
 //                   <span>Time</span>
 //                   <span>Patient &amp; Reason</span>
 //                   <span>Provider</span>
@@ -342,7 +380,7 @@
 //             {/* ── Right Column ── */}
 //             <div className="flex flex-col gap-6">
 
-//               {/* ── STATIC: Inbound Calls ── */}
+//               {/* ── Inbound Calls (static) ── */}
 //               <Card className="border-slate-100 shadow-sm transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-md">
 //                 <CardHeader className="flex flex-row items-center justify-between">
 //                   <div className="flex items-center gap-2">
@@ -362,7 +400,7 @@
 //                 </CardContent>
 //               </Card>
 
-//               {/* ── LIVE: Live Activity ── */}
+//               {/* ── Live Activity ── */}
 //               <Card className="border-slate-100 shadow-sm transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-md">
 //                 <CardHeader className="flex flex-row items-center justify-between">
 //                   <div className="flex items-center gap-2">
@@ -405,10 +443,8 @@
 //             </div>
 //           </div>
 
-//           {/* ── Bottom Grid ── */}
+//           {/* ── Revenue Card ── */}
 //           <div className="grid gap-6">
-
-//             {/* ── STATIC: Revenue + LIVE: bar widths from stats ── */}
 //             <Card className="border-slate-100 shadow-sm transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-md">
 //               <CardHeader className="flex flex-row items-center justify-between">
 //                 <CardTitle>Total Revenue Today</CardTitle>
@@ -422,17 +458,13 @@
 //                       label: "Standard Bookings",
 //                       display: "₹32,400",
 //                       color: "bg-slate-900",
-//                       pct: stats && stats.total > 0
-//                         ? (Number(stats.booked) / Number(stats.total)) * 100
-//                         : 70,
+//                       pct: totalAppts > 0 ? (confirmedAppts / totalAppts) * 100 : 70,
 //                     },
 //                     {
 //                       label: "Agent Generated",
 //                       display: "₹21,850",
 //                       color: "bg-emerald-400",
-//                       pct: stats && stats.total > 0
-//                         ? (Number(stats.completed) / Number(stats.total)) * 100
-//                         : 48,
+//                       pct: totalAppts > 0 ? (completedAppts / totalAppts) * 100 : 48,
 //                     },
 //                   ].map(({ label, display, color, pct }) => (
 //                     <div key={label}>
@@ -460,7 +492,6 @@
 //                 </div>
 //               </CardContent>
 //             </Card>
-
 //           </div>
 
 //           {/* ── Footer ── */}
@@ -493,7 +524,6 @@ import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { useSchedule } from "../hooks/useSchedule";
-import { CLINIC_ID } from "../lib/api";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -526,8 +556,10 @@ function useLiveActivity() {
   useEffect(() => {
     mountedRef.current = true;
 
+    const clinicId = localStorage.getItem("auvia_clinic_id") || "";
+
     // Fetch initial activity via REST
-    fetch(`/api/activity?limit=10&clinic_id=${CLINIC_ID}`)
+    fetch(`/api/activity?limit=10&clinic_id=${clinicId}`)
       .then((r) => r.json())
       .then((json) => { if (json.success && mountedRef.current) setActivities(json.data); })
       .catch(() => {});
@@ -535,7 +567,6 @@ function useLiveActivity() {
     function connectWs() {
       if (!mountedRef.current) return;
 
-      // Tear down any existing socket before opening a new one
       if (wsRef.current) {
         wsRef.current.onclose = null;
         wsRef.current.onerror = null;
@@ -543,7 +574,6 @@ function useLiveActivity() {
         wsRef.current = null;
       }
 
-      // Connect through the Next.js server (which proxies to private backend)
       const proto = window.location.protocol === "https:" ? "wss" : "ws";
       const ws    = new WebSocket(`${proto}://${window.location.host}/ws/activity`);
       wsRef.current = ws;
@@ -573,7 +603,6 @@ function useLiveActivity() {
       ws.onerror = () => { ws.onclose = null; ws.close(); scheduleReconnect(); };
     }
 
-    // Small delay so React Strict Mode double-invoke cleanup runs first
     const initTimer = setTimeout(connectWs, 150);
 
     return () => {
@@ -710,7 +739,6 @@ export default function DashboardPage() {
   const { schedule, stats, loading, error, lastRefresh, refresh, updateAppointmentStatus } =
     useSchedule(today);
 
-  // ── Filtered schedule ──
   const filteredSchedule = schedule.filter((appt) => {
     if (providerFilter === "all") return true;
     return appt.doctor_name?.toLowerCase().includes(
@@ -720,7 +748,6 @@ export default function DashboardPage() {
 
   const visibleSchedule = showAll ? filteredSchedule : filteredSchedule.slice(0, 5);
 
-  // ── Date / time display ──
   useEffect(() => {
     const now = new Date();
     setTodayFormatted(now.toLocaleDateString("en-IN", {
@@ -731,8 +758,7 @@ export default function DashboardPage() {
     }));
   }, []);
 
-  // ── Stats summary ──
-  const totalAppts    = Number(stats?.total       || 0);
+  const totalAppts     = Number(stats?.total     || 0);
   const confirmedAppts = Number(stats?.confirmed  || 0);
   const completedAppts = Number(stats?.completed  || 0);
 
