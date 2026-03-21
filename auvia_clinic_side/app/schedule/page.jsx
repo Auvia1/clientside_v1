@@ -837,7 +837,7 @@
 //   );
 // }
 
-// app/schedule/page.jsx
+/// app/schedule/page.jsx
 "use client";
 
 import { useMemo, useState, useEffect, useRef } from "react";
@@ -857,45 +857,75 @@ import { useClinicSchedule, usePatientSearch } from "../hooks/useSchedule";
 import { appointmentsApi } from "../lib/api";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+//
+// The DB stores appointments as full TIMESTAMPTZ:
+//   appointment_start: "2025-03-17T09:00:00+05:30"
+//   appointment_end:   "2025-03-17T09:30:00+05:30"
+//
+// All time helpers below derive hour/display from these fields.
 
-function formatTimeLabel(timeStr) {
-  if (!timeStr) return "";
-  const [h, m] = timeStr.split(":").map(Number);
-  const period = h < 12 ? "AM" : "PM";
-  const hour   = h % 12 || 12;
-  return `${String(hour).padStart(2, "0")}:${String(m).padStart(2, "0")} ${period}`;
+const IST = "Asia/Kolkata";
+
+/** Format a TIMESTAMPTZ string → "09:00 AM" displayed in IST */
+function formatTimeLabel(tsStr) {
+  if (!tsStr) return "";
+  return new Date(tsStr)
+    .toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: IST })
+    .toUpperCase();
 }
 
-function labelToDbTime(label) {
+/** Extract the IST wall-clock hour (0-23) from a TIMESTAMPTZ string */
+function getISTHour(tsStr) {
+  if (!tsStr) return -1;
+  const d = new Date(tsStr);
+  return parseInt(
+    new Intl.DateTimeFormat("en-IN", { hour: "numeric", hour12: false, timeZone: IST }).format(d),
+    10
+  );
+}
+
+/** Convert a slot label "09:00 AM" → hour integer in IST (9) */
+function slotLabelToHour(label) {
   const [timePart, period] = label.split(" ");
-  let [h, m] = timePart.split(":").map(Number);
+  let [h] = timePart.split(":").map(Number);
   if (period === "PM" && h !== 12) h += 12;
   if (period === "AM" && h === 12) h = 0;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`;
+  return h;
+}
+
+/**
+ * Build { slotLabel → appt[] } from a flat appointment array.
+ * Matches by IST hour of appointment_start against the slot hour.
+ */
+function buildSlotMap(appts = []) {
+  const map = {};
+  for (const slot of TIME_SLOTS) {
+    const slotHour = slotLabelToHour(slot);
+    map[slot] = appts.filter((a) => getISTHour(a.appointment_start) === slotHour);
+  }
+  return map;
 }
 
 function statusVariant(status) {
-  const map = {
+  return {
     confirmed:   "info",
     pending:     "warning",
     completed:   "success",
     cancelled:   "destructive",
     no_show:     "warning",
     rescheduled: "muted",
-  };
-  return map[status?.toLowerCase()] || "muted";
+  }[status?.toLowerCase()] || "muted";
 }
 
 function statusLabel(status) {
-  const map = {
+  return {
     confirmed:   "Confirmed",
     pending:     "Pending",
     completed:   "Completed",
     cancelled:   "Cancelled",
     no_show:     "No Show",
     rescheduled: "Rescheduled",
-  };
-  return map[status] || status;
+  }[status] || status;
 }
 
 function initials(name = "") {
@@ -904,9 +934,7 @@ function initials(name = "") {
 
 function relativeDate(dateStr) {
   if (!dateStr) return "No visits yet";
-  const diff = Math.floor(
-    (Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24)
-  );
+  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86_400_000);
   if (diff === 0) return "Today";
   if (diff === 1) return "Yesterday";
   if (diff < 30)  return `${diff} days ago`;
@@ -921,27 +949,25 @@ function activityAge(createdAt) {
 }
 
 function activityDot(type) {
-  const map = {
+  return {
     agent_booking:  "bg-emerald-400",
     manual_booking: "bg-sky-400",
     completion:     "bg-emerald-500",
     active_call:    "bg-amber-400 animate-pulse",
     cancellation:   "bg-red-400",
     reschedule:     "bg-violet-400",
-  };
-  return map[type] || "bg-slate-300";
+  }[type] || "bg-slate-300";
 }
 
 function activityTypeLabel(type) {
-  const map = {
+  return {
     agent_booking:  "Agent booked",
     manual_booking: "Receptionist booked",
     completion:     "Completed",
     active_call:    "Active call",
     cancellation:   "Cancelled",
     reschedule:     "Rescheduled",
-  };
-  return map[type] || type;
+  }[type] || type;
 }
 
 function metaSubline(meta) {
@@ -950,7 +976,7 @@ function metaSubline(meta) {
   if (obj.appointment_start) {
     try {
       return new Date(obj.appointment_start).toLocaleTimeString("en-IN", {
-        hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata",
+        hour: "2-digit", minute: "2-digit", hour12: true, timeZone: IST,
       });
     } catch (_) {}
   }
@@ -961,8 +987,7 @@ function metaSubline(meta) {
 function getWeekStart(dateStr) {
   const d   = new Date(`${dateStr}T00:00:00`);
   const day = d.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  d.setDate(d.getDate() + diff);
+  d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
   return d;
 }
 
@@ -977,13 +1002,6 @@ function getWeekDays(dateStr) {
 
 function toYMD(date) {
   return date.toISOString().slice(0, 10);
-}
-
-// ─── Converts HH:MM:SS or HH:MM to "HH:MM" string for comparison ─────────────
-function toHHMM(t) {
-  if (!t) return "";
-  const parts = t.split(":");
-  return String(parseInt(parts[0], 10)).padStart(2, "0") + ":" + (parts[1] || "00");
 }
 
 const TIME_SLOTS = [
@@ -1094,22 +1112,6 @@ function useWeekSchedule(doctorId, anchorDate) {
   return { weekData, loading };
 }
 
-// ─── buildSlotMap — returns ALL appointments per slot (not just first) ────────
-//
-// Before: used .find() → only the first match per slot was shown.
-// Now:    uses .filter() → every appointment in that hour is collected.
-//
-// Shape: { "08:00 AM": [appt, appt, ...], "09:00 AM": [], ... }
-
-function buildSlotMap(appts = []) {
-  const slotMap = {};
-  for (const slot of TIME_SLOTS) {
-    const slotHHMM = labelToDbTime(slot).slice(0, 5);
-    slotMap[slot] = appts.filter((a) => toHHMM(a.start_time) === slotHHMM);
-  }
-  return slotMap;
-}
-
 // ─── AppointmentCell ──────────────────────────────────────────────────────────
 
 function AppointmentCell({ appt, onStatusChange }) {
@@ -1140,7 +1142,6 @@ function AppointmentCell({ appt, onStatusChange }) {
 
   const isActionable = localStatus === "confirmed" || localStatus === "pending";
 
-  // Colour-code the left border by status so it's scannable at a glance
   const borderColor = {
     confirmed:   "border-l-sky-400",
     pending:     "border-l-amber-400",
@@ -1154,36 +1155,34 @@ function AppointmentCell({ appt, onStatusChange }) {
     <Card className={`relative border-l-4 ${borderColor} transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-md`}>
       <CardContent className="p-2.5">
 
-        {/* ── Toast overlay ── */}
         {toastMsg && (
           <div className="absolute inset-x-2 top-2 z-10 flex items-center justify-center rounded-lg bg-emerald-500 px-2 py-1 text-[10px] font-semibold text-white shadow-sm">
             {toastMsg}
           </div>
         )}
 
-        {/* ── Time pill — most prominent, at the top ── */}
+        {/* Time + status badge */}
         <div className="flex items-center gap-1 mb-1.5">
           <FiCalendar className="h-3 w-3 shrink-0 text-slate-400" />
           <span className="text-[11px] font-semibold text-slate-500 tabular-nums">
-            {formatTimeLabel(appt.start_time)}
-            {appt.end_time ? ` – ${formatTimeLabel(appt.end_time)}` : ""}
+            {formatTimeLabel(appt.appointment_start)}
+            {appt.appointment_end ? ` – ${formatTimeLabel(appt.appointment_end)}` : ""}
           </span>
           <Badge variant={statusVariant(localStatus)} className="ml-auto text-[9px] shrink-0">
             {statusLabel(localStatus)}
           </Badge>
         </div>
 
-        {/* ── Patient name — bold, easy to read ── */}
+        {/* Patient name */}
         <p className="text-sm font-bold text-slate-800 leading-tight truncate">
           {appt.patient_name || "Unknown patient"}
         </p>
 
-        {/* ── Reason ── */}
+        {/* Reason */}
         <p className="text-[11px] text-slate-500 mt-0.5 truncate">
           {appt.reason || <span className="italic text-slate-300">No reason given</span>}
         </p>
 
-        {/* ── Error ── */}
         {errorMsg && (
           <p className="mt-1 flex items-center gap-1 text-[10px] text-red-500">
             <FiAlertCircle className="shrink-0" />
@@ -1191,25 +1190,19 @@ function AppointmentCell({ appt, onStatusChange }) {
           </p>
         )}
 
-        {/* ── Action buttons ── */}
+        {/* Action buttons */}
         {(isActionable || updating) && (
           <div className="mt-2 flex items-center gap-1">
             {updating ? (
               <FiLoader className="h-3 w-3 animate-spin text-slate-400" />
             ) : (
               <>
-                <button
-                  onClick={() => handleChange("completed")}
-                  disabled={updating}
-                  className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100 active:scale-95 disabled:opacity-50 transition-all duration-150"
-                >
+                <button onClick={() => handleChange("completed")} disabled={updating}
+                  className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100 active:scale-95 disabled:opacity-50 transition-all duration-150">
                   <FiCheck className="h-2.5 w-2.5" />Done
                 </button>
-                <button
-                  onClick={() => handleChange("no_show")}
-                  disabled={updating}
-                  className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium bg-amber-50 text-amber-700 hover:bg-amber-100 active:scale-95 disabled:opacity-50 transition-all duration-150"
-                >
+                <button onClick={() => handleChange("no_show")} disabled={updating}
+                  className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium bg-amber-50 text-amber-700 hover:bg-amber-100 active:scale-95 disabled:opacity-50 transition-all duration-150">
                   <FiUserX className="h-2.5 w-2.5" />No-show
                 </button>
               </>
@@ -1221,22 +1214,17 @@ function AppointmentCell({ appt, onStatusChange }) {
   );
 }
 
-// ─── SlotCell — renders 0, 1, or many appointments in a single time+day cell ──
+// ─── SlotCell — renders 0, 1, or many appointments stacked ───────────────────
 
-function SlotCell({ appts = [], onStatusChange, className = "" }) {
+function SlotCell({ appts = [], onStatusChange }) {
   if (appts.length === 0) {
-    // Empty slot — just a quiet placeholder
-    return (
-      <Card className={`min-h-[70px] bg-white/60 ${className}`} />
-    );
+    return <Card className="min-h-[70px] bg-white/60" />;
   }
-
   return (
-    <div className={`flex flex-col gap-1.5 ${className}`}>
+    <div className="flex flex-col gap-1.5">
       {appts.map((appt) => (
         <AppointmentCell key={appt.id} appt={appt} onStatusChange={onStatusChange} />
       ))}
-      {/* If more than one appointment in the slot, show a subtle count badge */}
       {appts.length > 1 && (
         <p className="text-center text-[9px] font-semibold text-slate-400">
           {appts.length} appointments
@@ -1253,7 +1241,6 @@ function WeekView({ doctor, anchorDate, onShiftWeek }) {
   const weekDays = getWeekDays(anchorDate);
   const todayStr = new Date().toISOString().slice(0, 10);
 
-  // Build slot maps for every day — now returns arrays, not single appts
   const slotMaps = useMemo(() => {
     const maps = {};
     for (const d of weekDays) {
@@ -1272,7 +1259,6 @@ function WeekView({ doctor, anchorDate, onShiftWeek }) {
 
   return (
     <div>
-      {/* ── Week nav ── */}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <div className="flex items-center gap-2">
           <div className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600 shrink-0">
@@ -1304,7 +1290,7 @@ function WeekView({ doctor, anchorDate, onShiftWeek }) {
           {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="flex gap-2">
               <div className="w-[90px] h-[70px] animate-pulse rounded-xl bg-slate-100 shrink-0" />
-              {[0, 1, 2, 3, 4, 5, 6].map((j) => (
+              {[0,1,2,3,4,5,6].map((j) => (
                 <div key={j} className="flex-1 h-[70px] animate-pulse rounded-xl bg-slate-50" />
               ))}
             </div>
@@ -1312,46 +1298,30 @@ function WeekView({ doctor, anchorDate, onShiftWeek }) {
         </div>
       ) : (
         <div className="overflow-x-auto">
-          {/* ── Day column headers ── */}
-          <div
-            className="grid gap-3 mb-2"
-            style={{ gridTemplateColumns: `90px repeat(7, minmax(160px, 1fr))` }}
-          >
+          {/* Day headers */}
+          <div className="grid gap-3 mb-2"
+            style={{ gridTemplateColumns: `90px repeat(7, minmax(160px, 1fr))` }}>
             <div />
             {weekDays.map((d, i) => {
               const ymd     = toYMD(d);
               const isToday = ymd === todayStr;
-              // Total appts across all slots for this day
               const count   = (weekData[ymd] || []).length;
               return (
-                <Card
-                  key={ymd}
-                  className={isToday ? "border-emerald-300 bg-emerald-50" : ""}
-                >
+                <Card key={ymd} className={isToday ? "border-emerald-300 bg-emerald-50" : ""}>
                   <CardContent className="p-3">
                     <div className="flex items-center gap-2">
-                      <div
-                        className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-semibold ${
-                          isToday ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"
-                        }`}
-                      >
+                      <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-semibold ${
+                        isToday ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"
+                      }`}>
                         {initials(doctor.name)}
                       </div>
                       <div className="min-w-0">
-                        <p
-                          className={`text-[11px] font-semibold uppercase tracking-wide ${
-                            isToday ? "text-emerald-700" : "text-slate-500"
-                          }`}
-                        >
-                          {DAY_LABELS[i]}
-                        </p>
-                        <p
-                          className={`text-sm font-bold leading-none ${
-                            isToday ? "text-emerald-700" : "text-slate-800"
-                          }`}
-                        >
-                          {d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
-                        </p>
+                        <p className={`text-[11px] font-semibold uppercase tracking-wide ${
+                          isToday ? "text-emerald-700" : "text-slate-500"
+                        }`}>{DAY_LABELS[i]}</p>
+                        <p className={`text-sm font-bold leading-none ${
+                          isToday ? "text-emerald-700" : "text-slate-800"
+                        }`}>{d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</p>
                       </div>
                     </div>
                     <div className="mt-2">
@@ -1371,14 +1341,11 @@ function WeekView({ doctor, anchorDate, onShiftWeek }) {
             })}
           </div>
 
-          {/* ── Time rows ── */}
+          {/* Time rows */}
           <div className="space-y-3">
             {TIME_SLOTS.map((slot) => (
-              <div
-                key={slot}
-                className="grid gap-3 items-start"          // items-start so tall cells don't stretch neighbours
-                style={{ gridTemplateColumns: `90px repeat(7, minmax(160px, 1fr))` }}
-              >
+              <div key={slot} className="grid gap-3 items-start"
+                style={{ gridTemplateColumns: `90px repeat(7, minmax(160px, 1fr))` }}>
                 <div className="text-xs font-semibold text-slate-400 pt-2 shrink-0">{slot}</div>
                 {weekDays.map((d) => {
                   const ymd   = toYMD(d);
@@ -1509,16 +1476,15 @@ export default function SchedulePage() {
   const selectedDoctor = doctors.find((d) => d.id === doctorFilter) ?? null;
 
   const formattedDate = useMemo(() => {
-    const date = new Date(`${selectedDate}T00:00:00`);
-    return date.toLocaleDateString("en-US", {
+    return new Date(`${selectedDate}T00:00:00`).toLocaleDateString("en-US", {
       weekday: "long", month: "long", day: "numeric", year: "numeric",
     });
   }, [selectedDate]);
 
   const shiftDate = (offset) => {
-    const date = new Date(`${selectedDate}T00:00:00`);
-    date.setDate(date.getDate() + offset);
-    setSelectedDate(date.toISOString().slice(0, 10));
+    const d = new Date(`${selectedDate}T00:00:00`);
+    d.setDate(d.getDate() + offset);
+    setSelectedDate(d.toISOString().slice(0, 10));
   };
 
   const handleShiftWeek = (offset) => {
@@ -1528,11 +1494,12 @@ export default function SchedulePage() {
 
   const visibleDoctors = doctors;
 
-  // Build slot maps for all-doctors view — now returns arrays per slot
+  // All-doctors grid: flatten appointmentMap and build TIMESTAMPTZ-aware slot maps
   const doctorSlotMaps = useMemo(() => {
     const maps = {};
     for (const doctor of visibleDoctors) {
-      const appts = Object.values(appointmentMap[doctor.id] || {});
+      const raw   = appointmentMap[doctor.id] || {};
+      const appts = Array.isArray(raw) ? raw : Object.values(raw);
       maps[doctor.id] = buildSlotMap(appts);
     }
     return maps;
@@ -1546,7 +1513,7 @@ export default function SchedulePage() {
         <main className="flex flex-col gap-6 px-8 py-6">
           <Navbar activeMonitoring={activeMonitoring} onToggleMonitoring={setActiveMonitoring} />
 
-          {/* ── Page header ── */}
+          {/* Page header */}
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <h1 className="text-xl font-semibold">Clinic Schedule</h1>
@@ -1593,7 +1560,6 @@ export default function SchedulePage() {
             </div>
           </div>
 
-          {/* ── Error banner ── */}
           {error && (
             <div className="flex items-center gap-3 rounded-2xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700">
               <FiAlertCircle className="shrink-0" />
@@ -1604,36 +1570,28 @@ export default function SchedulePage() {
 
           <div className="grid gap-6 lg:grid-cols-[2.2fr_1fr]">
 
-            {/* ── Schedule panel ── */}
             <Card className="border-slate-100 shadow-sm overflow-x-auto">
               <CardHeader className="pb-2">
-                {/* Doctor filter pills */}
                 <div className="flex flex-wrap items-center gap-2 mb-4">
-                  <Button
-                    variant={doctorFilter === "all" ? "default" : "outline"}
-                    className="rounded-full px-4 text-xs"
-                    onClick={() => setDoctorFilter("all")}
-                  >
+                  <Button variant={doctorFilter === "all" ? "default" : "outline"}
+                    className="rounded-full px-4 text-xs" onClick={() => setDoctorFilter("all")}>
                     All Doctors
                   </Button>
                   {doctors.map((d) => (
-                    <Button
-                      key={d.id}
+                    <Button key={d.id}
                       variant={doctorFilter === d.id ? "default" : "outline"}
                       className="rounded-full px-4 text-xs"
-                      onClick={() => setDoctorFilter(doctorFilter === d.id ? "all" : d.id)}
-                    >
+                      onClick={() => setDoctorFilter(doctorFilter === d.id ? "all" : d.id)}>
                       Dr. {d.name.split(" ").pop()}
                     </Button>
                   ))}
                 </div>
 
-                {/* Column headers — only in all-doctors mode */}
                 {doctorFilter === "all" && (
                   loading ? (
                     <div className="flex gap-3">
                       <div className="w-[90px] shrink-0" />
-                      {[1, 2, 3].map((i) => (
+                      {[1,2,3].map((i) => (
                         <div key={i} className="flex-1 h-16 animate-pulse rounded-xl bg-slate-100" />
                       ))}
                     </div>
@@ -1665,7 +1623,6 @@ export default function SchedulePage() {
               </CardHeader>
 
               <CardContent>
-                {/* Week view when a doctor is selected */}
                 {selectedDoctor ? (
                   <WeekView
                     doctor={selectedDoctor}
@@ -1677,7 +1634,7 @@ export default function SchedulePage() {
                     {Array.from({ length: 6 }).map((_, i) => (
                       <div key={i} className="flex gap-3">
                         <div className="w-[90px] h-[70px] animate-pulse rounded-xl bg-slate-100 shrink-0" />
-                        {[1, 2, 3].map((j) => (
+                        {[1,2,3].map((j) => (
                           <div key={j} className="flex-1 h-[70px] animate-pulse rounded-xl bg-slate-50" />
                         ))}
                       </div>
@@ -1689,25 +1646,18 @@ export default function SchedulePage() {
                     <p className="text-sm">No doctors found.</p>
                   </div>
                 ) : (
-                  /* All-doctors day grid */
                   <div className="mt-2 space-y-3">
                     {TIME_SLOTS.map((slot) => (
-                      <div
-                        key={slot}
-                        className="grid gap-3 items-start"   // items-start prevents empty cells stretching
-                        style={{ gridTemplateColumns: `90px repeat(${visibleDoctors.length}, minmax(160px, 1fr))` }}
-                      >
+                      <div key={slot} className="grid gap-3 items-start"
+                        style={{ gridTemplateColumns: `90px repeat(${visibleDoctors.length}, minmax(160px, 1fr))` }}>
                         <div className="text-xs font-semibold text-slate-400 pt-2">{slot}</div>
-                        {visibleDoctors.map((doctor) => {
-                          const appts = doctorSlotMaps[doctor.id]?.[slot] ?? [];
-                          return (
-                            <SlotCell
-                              key={`${slot}-${doctor.id}`}
-                              appts={appts}
-                              onStatusChange={updateStatus}
-                            />
-                          );
-                        })}
+                        {visibleDoctors.map((doctor) => (
+                          <SlotCell
+                            key={`${slot}-${doctor.id}`}
+                            appts={doctorSlotMaps[doctor.id]?.[slot] ?? []}
+                            onStatusChange={updateStatus}
+                          />
+                        ))}
                       </div>
                     ))}
                   </div>
@@ -1715,7 +1665,6 @@ export default function SchedulePage() {
               </CardContent>
             </Card>
 
-            {/* ── Right column ── */}
             <div className="flex flex-col gap-6">
               <PatientLookup />
               <LiveActivityPanel activities={activities} wsStatus={wsStatus} />
