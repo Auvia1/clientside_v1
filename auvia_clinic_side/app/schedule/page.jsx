@@ -1661,7 +1661,10 @@ export default function SchedulePage() {
                   >
                     Today
                   </Button>
-                  <Button variant="outline" className="rounded-full px-3" onClick={() => shiftDate(1)}>
+                  <Button
+                    variant="outline" className="rounded-full px-3"
+                    onClick={() => handleShiftWeek(7)}
+                  >
                     <FiChevronRight />
                   </Button>
                 </>
@@ -1674,6 +1677,21 @@ export default function SchedulePage() {
               */}
               {selectedDoctor && (
                 <>
+                <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1">
+                    <FiCalendar className="text-slate-400 shrink-0" />
+                    <Input
+                      type="date"
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      className="h-8 border-none bg-transparent p-0 text-xs w-32"
+                    />
+                    <Button
+                      variant="ghost" size="sm" className="h-6 w-6 rounded-full p-0"
+                      onClick={() => setSelectedDate(new Date().toISOString().slice(0, 10))}
+                    >
+                      <FiX />
+                    </Button>
+                  </div>
                   <Button
                     variant="outline" className="rounded-full px-3"
                     onClick={() => handleShiftWeek(-7)}
