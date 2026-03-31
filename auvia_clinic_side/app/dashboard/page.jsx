@@ -15,7 +15,9 @@ import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { useSchedule } from "../hooks/useSchedule";
+import { useOverallCallStats } from "../hooks/useOverallCallStats";
 import { doctorsApi } from "../lib/api";
+import { calculatePercentage } from "../lib/utils";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -242,6 +244,7 @@ export default function DashboardPage() {
 
   const doctors                                 = useDoctors();
   const { activities, wsStatus }                = useLiveActivity();
+  const { stats: overallCallStats, loading: overallLoading } = useOverallCallStats();
 
   const { schedule, loading, error, lastRefresh, refresh, updateAppointmentStatus } =
     useSchedule(today);
@@ -399,23 +402,38 @@ export default function DashboardPage() {
             {/* ── Right Column ── */}
             <div className="flex flex-col gap-6">
 
-              {/* ── Inbound Calls (static) ── */}
-              <Card className="border-slate-100 shadow-sm transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-md">
+              {/* ── Overall Calls Handled by Agent ── */}
+              <Card className="border-slate-100 shadow-sm transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-md bg-gradient-to-br from-emerald-50 to-emerald-50/30">
                 <CardHeader className="flex flex-row items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-slate-50 text-slate-500">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600">
                       <PhoneCall className="h-4 w-4" />
                     </div>
-                    <CardTitle>Inbound Calls</CardTitle>
+                    <CardTitle className="text-emerald-900">Agent Calls</CardTitle>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-semibold">128</div>
-                  <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
-                    <Badge variant="success">98.5%</Badge>
-                    <span>Answered</span>
-                  </div>
-                  <p className="mt-3 text-xs text-slate-500">84 calls handled by Agent</p>
+                  {overallLoading ? (
+                    <div className="space-y-2">
+                      <div className="h-8 bg-emerald-200 rounded animate-pulse" />
+                      <div className="h-4 bg-emerald-200 rounded animate-pulse" />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="text-3xl font-semibold text-emerald-900">{overallCallStats.ai_calls}</div>
+                      <div className="mt-2 flex items-center gap-2 text-sm text-emerald-700">
+                        <Badge variant="success" className="bg-emerald-600">
+                          {overallCallStats.total_calls > 0
+                            ? `${calculatePercentage(overallCallStats.ai_calls, overallCallStats.total_calls)}%`
+                            : "0%"}
+                        </Badge>
+                        <span>of Total Calls</span>
+                      </div>
+                      <p className="mt-3 text-xs text-emerald-600">
+                        {overallCallStats.human_calls} calls by Staff
+                      </p>
+                    </>
+                  )}
                 </CardContent>
               </Card>
 

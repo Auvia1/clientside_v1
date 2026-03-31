@@ -8,6 +8,10 @@ import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { Input } from "../components/ui/input";
 import { callsApi } from "../lib/api";
+import NewCallLogDialog from "../components/NewCallLogDialog";
+import { useOverallCallStats } from "../hooks/useOverallCallStats";
+import { extractArrayData, calculatePercentage, calculatePercentageRounded } from "../lib/utils";
+import { CALL_TYPES, AGENT_TYPES, CALL_TYPE_LABELS, AGENT_TYPE_LABELS } from "../constants/callTypes";
 import {
 	FiCalendar,
 	FiChevronDown,
@@ -61,10 +65,10 @@ function formatDateRange(date) {
 export default function CallsAndLogsPage() {
 	const [activeMonitoring, setActiveMonitoring] = useState(true);
 	const [calls, setCalls] = useState([]);
-	const [stats, setStats] = useState(null);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState(null);
 	const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
+	const { stats: overallStats } = useOverallCallStats();
 
 	const [filters, setFilters] = useState({
 		type: "",
@@ -86,7 +90,7 @@ export default function CallsAndLogsPage() {
 			});
 
 			console.log("Calls API Response:", response);
-			const callsData = Array.isArray(response) ? response : response?.data || [];
+			const callsData = extractArrayData(response);
 			const paginationData = response?.pagination || { page, limit: 20, total: 0, totalPages: 1 };
 
 			setCalls(callsData);
@@ -105,25 +109,8 @@ export default function CallsAndLogsPage() {
 		}
 	};
 
-	const fetchStats = async () => {
-		try {
-			const today = new Date().toISOString().split("T")[0];
-			const response = await callsApi.getStats({
-				start_date: today,
-				end_date: today,
-			});
-			console.log("Calls Stats Response:", response);
-			const statsData = response?.data || response || null;
-			setStats(statsData);
-		} catch (err) {
-			console.error("Error fetching stats:", err);
-			setStats(null);
-		}
-	};
-
 	useEffect(() => {
 		fetchCalls(1);
-		fetchStats();
 	}, [filters, selectedDate]);
 
 	const handleFilterChange = (key, value) => {
@@ -176,9 +163,7 @@ export default function CallsAndLogsPage() {
 							>
 								<FiDownload className="mr-2" /> Export CSV
 							</Button>
-							<Button className="rounded-full px-4 transition-transform duration-200 hover:-translate-y-0.5">
-								+ Log Manual Call
-							</Button>
+							<NewCallLogDialog onCallLogged={() => fetchCalls(1)} />
 						</div>
 					</div>
 
@@ -207,8 +192,8 @@ export default function CallsAndLogsPage() {
 									disabled={loading}
 								>
 									<option value="">Agent: All</option>
-									<option value="ai">Agent: AI</option>
-									<option value="human">Agent: Human</option>
+									<option value={AGENT_TYPES.AI}>Agent: {AGENT_TYPE_LABELS[AGENT_TYPES.AI]}</option>
+									<option value={AGENT_TYPES.HUMAN}>Agent: {AGENT_TYPE_LABELS[AGENT_TYPES.HUMAN]}</option>
 								</select>
 								<select
 									value={filters.type}
@@ -217,8 +202,8 @@ export default function CallsAndLogsPage() {
 									disabled={loading}
 								>
 									<option value="">Call Type: All</option>
-									<option value="incoming">Incoming</option>
-									<option value="outgoing">Outgoing</option>
+									<option value={CALL_TYPES.INCOMING}>{CALL_TYPE_LABELS[CALL_TYPES.INCOMING]}</option>
+									<option value={CALL_TYPES.OUTGOING}>{CALL_TYPE_LABELS[CALL_TYPES.OUTGOING]}</option>
 								</select>
 								<Button
 									variant="ghost"
@@ -278,12 +263,12 @@ export default function CallsAndLogsPage() {
 													{formatTime(call.time).split(" ")[1]}
 												</span>
 												<div className="mt-1 flex items-center gap-1 text-[10px] text-slate-500">
-													{call.type === "incoming" ? (
+													{call.type === CALL_TYPES.INCOMING ? (
 														<FiArrowDownLeft className="text-emerald-500" />
 													) : (
 														<FiArrowUpRight className="text-slate-500" />
 													)}
-													{call.type === "incoming" ? "Incoming" : "Outgoing"}
+													{CALL_TYPE_LABELS[call.type] || "Unknown"}
 												</div>
 											</div>
 											<div>
@@ -292,7 +277,7 @@ export default function CallsAndLogsPage() {
 											</div>
 											<div>
 												<Badge variant="info" className="text-[9px]">
-													{call.agent_type === "ai" ? "Virtual Agent" : "Human Staff"}
+													{AGENT_TYPE_LABELS[call.agent_type] || "Unknown"}
 												</Badge>
 											</div>
 											<div className="text-xs text-slate-500">{formatDuration(call.duration)}</div>
@@ -352,85 +337,55 @@ export default function CallsAndLogsPage() {
 						</Card>
 
 						<div className="flex flex-col gap-6">
-							<Card className="border-slate-100 shadow-sm">
-								<CardHeader className="flex flex-row items-center justify-between">
-									<CardTitle>Total Today</CardTitle>
-									{stats && (
-										<Badge variant="success">
-											{stats.total_calls > 0
-												? `${((stats.ai_calls / stats.total_calls) * 100).toFixed(1)}% AI Handled`
-												: "No calls"}
-										</Badge>
-									)}
-								</CardHeader>
-								<CardContent>
-									<div className="text-2xl font-semibold">{stats?.total_calls || 0}</div>
-									<p className="text-xs text-slate-500">Calls Handled</p>
-								</CardContent>
-							</Card>
-
-							<Card className="border-slate-100 shadow-sm">
+							<Card className="border-slate-100 shadow-sm bg-gradient-to-br from-emerald-50 to-emerald-50/30">
 								<CardHeader>
-									<CardTitle>Daily Handling Efficiency</CardTitle>
+									<CardTitle className="text-emerald-900">Overall Agent Calls</CardTitle>
 								</CardHeader>
 								<CardContent>
 									<div className="space-y-3">
 										<div>
-											<div className="flex items-center justify-between text-xs text-slate-500">
-												<span>Virtual Agent Workload</span>
+											<div className="text-3xl font-semibold text-emerald-900">
+												{overallStats?.ai_calls || 0}
+											</div>
+											<p className="text-xs text-emerald-600 mt-1">Total calls handled by Agent</p>
+										</div>
+										<div className="pt-3 border-t border-emerald-200">
+											<div className="flex items-center justify-between text-xs text-emerald-700 mb-2">
+												<span>Agent vs Staff</span>
 												<span>
-													{stats
-														? `${stats.total_calls > 0
-															? Math.round((stats.ai_calls / stats.total_calls) * 100)
-															: 0}% (${stats.ai_calls} Calls)`
-														: "0% (0 Calls)"}
+													{overallStats && overallStats.total_calls > 0
+														? `${calculatePercentage(overallStats.ai_calls, overallStats.total_calls)}% vs ${calculatePercentage(overallStats.human_calls, overallStats.total_calls)}%`
+														: "—"}
 												</span>
 											</div>
-											<div className="mt-2 h-2 rounded-full bg-slate-100">
-												<div
-													className="h-2 rounded-full bg-[var(--brand-primary)]"
-													style={{
-														width: stats?.total_calls
-															? `${(stats.ai_calls / stats.total_calls) * 100}%`
-															: "0%",
-													}}
-												/>
+											<div className="flex gap-2">
+												<div className="flex-1 h-2 rounded-full bg-emerald-200">
+													<div
+														className="h-2 rounded-full bg-emerald-600"
+														style={{
+															width: overallStats?.total_calls
+																? `${calculatePercentageRounded(overallStats.ai_calls, overallStats.total_calls)}%`
+																: "0%",
+														}}
+													/>
+												</div>
+												<div className="flex-1 h-2 rounded-full bg-slate-200">
+													<div
+														className="h-2 rounded-full bg-slate-600"
+														style={{
+															width: overallStats?.total_calls
+																? `${calculatePercentageRounded(overallStats.human_calls, overallStats.total_calls)}%`
+																: "0%",
+														}}
+													/>
+												</div>
 											</div>
 										</div>
-										<div>
-											<div className="flex items-center justify-between text-xs text-slate-500">
-												<span>Human Staff Intervention</span>
-												<span>
-													{stats
-														? `${stats.total_calls > 0
-															? Math.round((stats.human_calls / stats.total_calls) * 100)
-															: 0}% (${stats.human_calls} Calls)`
-														: "0% (0 Calls)"}
-												</span>
-											</div>
-											<div className="mt-2 h-2 rounded-full bg-slate-100">
-												<div
-													className="h-2 rounded-full bg-slate-900"
-													style={{
-														width: stats?.total_calls
-															? `${(stats.human_calls / stats.total_calls) * 100}%`
-															: "0%",
-													}}
-												/>
-											</div>
+										<div className="pt-2 text-xs text-slate-500">
+											<p>Total Calls: <strong>{overallStats?.total_calls || 0}</strong></p>
+											<p>Staff Calls: <strong>{overallStats?.human_calls || 0}</strong></p>
 										</div>
 									</div>
-									{stats && stats.total_duration > 0 && (
-										<p className="mt-4 text-xs text-slate-500">
-											The Virtual Agent automated approximately{" "}
-											<strong>
-												{Math.round((stats.ai_calls / stats.total_calls) * (stats.total_duration / 60)) / 60}
-												{" "}hours
-											</strong>
-											of manual call time today, allowing front desk staff to focus on
-											high-priority patient care.
-										</p>
-									)}
 								</CardContent>
 							</Card>
 						</div>
