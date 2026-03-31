@@ -63,11 +63,12 @@ export default function EarningsPage() {
   const [totalEarnings, setTotalEarnings] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedDate, setSelectedDate] = useState(new Date(2026, 3, 30).toISOString().slice(0, 10));
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
 
   // Calculate week offset based on selected date
   const calculateWeekOffset = (dateStr) => {
-    const today = new Date(2026, 3, 30);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const selectedDateObj = new Date(dateStr);
     const daysDiff = Math.floor((selectedDateObj - today) / (1000 * 60 * 60 * 24));
     return Math.floor(daysDiff / 7);
@@ -269,11 +270,6 @@ export default function EarningsPage() {
                   value={selectedDate}
                   onChange={(e) => {
                     setSelectedDate(e.target.value);
-                    const today = new Date(2026, 3, 30);
-                    const selectedDateObj = new Date(e.target.value);
-                    const daysDiff = Math.floor((selectedDateObj - today) / (1000 * 60 * 60 * 24));
-                    const weekOff = Math.floor(daysDiff / 7);
-                    setWeekOffset(weekOff);
                   }}
                   className="h-8 border-none bg-transparent p-0 text-xs w-32"
                 />
@@ -282,8 +278,7 @@ export default function EarningsPage() {
                   size="sm"
                   className="h-6 w-6 rounded-full p-0"
                   onClick={() => {
-                    setSelectedDate(new Date(2026, 3, 30).toISOString().slice(0, 10));
-                    setWeekOffset(0);
+                    setSelectedDate(new Date().toISOString().slice(0, 10));
                   }}
                 >
                   <X className="h-4 w-4" />
@@ -300,8 +295,7 @@ export default function EarningsPage() {
                 variant="outline"
                 className="rounded-full px-4 text-xs"
                 onClick={() => {
-                  setSelectedDate(new Date(2026, 3, 30).toISOString().slice(0, 10));
-                  setWeekOffset(0);
+                  setSelectedDate(new Date().toISOString().slice(0, 10));
                 }}
               >
                 This Week
