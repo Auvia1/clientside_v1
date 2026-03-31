@@ -164,6 +164,17 @@ export const doctorsApi = {
   getSlots: (doctorId, date) =>
     request(`/doctors/${doctorId}/slots?date=${date}&clinic_id=${getClinicId()}`),
 
+  getAppointments: (doctorId, filters = {}) => {
+    const params = new URLSearchParams({ clinic_id: getClinicId() });
+    if (filters.status) params.set("status", filters.status);
+    if (filters.start_date) params.set("start_date", filters.start_date);
+    if (filters.end_date) params.set("end_date", filters.end_date);
+    if (filters.patient_id) params.set("patient_id", filters.patient_id);
+    if (filters.page) params.set("page", filters.page);
+    if (filters.limit) params.set("limit", filters.limit);
+    return request(`/doctors/${doctorId}/appointments?${params}`);
+  },
+
   createSchedule: (doctorId, payload) =>
     request(`/doctors/${doctorId}/schedule`, {
       method: "POST",

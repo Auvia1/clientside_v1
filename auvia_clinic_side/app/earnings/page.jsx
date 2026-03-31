@@ -64,6 +64,9 @@ export default function EarningsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
+  const [doctorAppointmentCount, setDoctorAppointmentCount] = useState(0);
+  const [doctorWeeklyEarnings, setDoctorWeeklyEarnings] = useState(0);
+  const [doctorLoading, setDoctorLoading] = useState(false);
 
   // Calculate week offset based on selected date
   const calculateWeekOffset = (dateStr) => {
@@ -204,11 +207,58 @@ export default function EarningsPage() {
     fetchDoctors();
   }, []);
 
-  const selectedDoctor = doctors.find(d => d.id === selectedDoctorId) || doctors[0];
-  let selectedDoctorData = doctorEarningsData[selectedDoctorId];
-  let selectedDoctorWeekly = selectedDoctorData?.weekly || [];
+  // Fetch doctor appointments and earnings for selected doctor
+  useEffect(() => {
+    if (!selectedDoctorId) return;
 
-  const selectedDoctorTotal = selectedDoctorWeekly.reduce((sum, item) => sum + item.earnings, 0);
+    const fetchDoctorAppointments = async () => {
+      setDoctorLoading(true);
+      try {
+        // Calculate the start and end date of the selected week
+        const selectedDateObj = new Date(selectedDate);
+        const weekStart = new Date(selectedDateObj);
+        weekStart.setDate(selectedDateObj.getDate() - selectedDateObj.getDay());
+        weekStart.setHours(0, 0, 0, 0);
+
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+        weekEnd.setHours(23, 59, 59, 999);
+
+        const startDateStr = weekStart.toISOString().split('T')[0];
+        const endDateStr = weekEnd.toISOString().split('T')[0];
+
+        const appointmentsResponse = await doctorsApi.getAppointments(selectedDoctorId, {
+          status: 'completed',
+          start_date: startDateStr,
+          end_date: endDateStr,
+          limit: 100,
+        });
+
+        setDoctorAppointmentCount(appointmentsResponse?.length || 0);
+
+        // Calculate doctor's total earnings from appointments
+        const doctorEarnings = appointmentsResponse?.reduce((sum, appt) => {
+          return sum + (parseFloat(appt.payment_amount) || 0);
+        }, 0) || 0;
+
+        setDoctorWeeklyEarnings(doctorEarnings);
+        console.log(`Doctor ${selectedDoctorId}: ${appointmentsResponse?.length || 0} appointments, ₹${doctorEarnings.toLocaleString('en-IN')} earnings`);
+      } catch (err) {
+        console.error("Error fetching doctor appointments:", err);
+        setDoctorAppointmentCount(0);
+        setDoctorWeeklyEarnings(0);
+      } finally {
+        setDoctorLoading(false);
+      }
+    };
+
+    fetchDoctorAppointments();
+  }, [selectedDoctorId, selectedDate]);
+
+  const selectedDoctor = doctors.find(d => d.id === selectedDoctorId) || doctors[0];
+
+  // Doctor's weekly total is calculated from their appointments
+  const selectedDoctorTotal = doctorWeeklyEarnings;
 
   const highestDay = weeklyData.length > 0
     ? weeklyData.reduce((max, item) => item.earnings > max.earnings ? item : max)
@@ -218,9 +268,7 @@ export default function EarningsPage() {
     ? Math.round(totalEarnings / weeklyData.length)
     : 0;
 
-  const selectedDoctorHighestDay = selectedDoctorWeekly.length > 0
-    ? selectedDoctorWeekly.reduce((max, item) => item.earnings > max.earnings ? item : max)
-    : null;
+  const selectedDoctorHighestDay = null; // Doctor best day would need day-by-day breakdown from appointments
 
   const weekLabel = weekOffset === 0
     ? "This Week"
@@ -432,30 +480,30 @@ export default function EarningsPage() {
                 <div className="rounded-lg bg-blue-50 p-4">
                   <p className="text-xs font-medium text-blue-700 mb-1">Total Appointments</p>
                   <p className="text-2xl font-bold text-blue-600">
-                    {selectedDoctorData?.appointments || "—"}
+                    {doctorLoading ? "..." : doctorAppointmentCount}
                   </p>
                 </div>
 
                 {/* Best Day */}
                 <div className="rounded-lg bg-amber-50 p-4">
-                  <p className="text-xs font-medium text-amber-700 mb-1">Best Day</p>
+                  <p className="text-xs font-medium text-amber-700 mb-1">Weekly Earnings per Appointment</p>
                   <p className="text-2xl font-bold text-amber-600">
-                    {selectedDoctorHighestDay ? selectedDoctorHighestDay.day : "—"}
+                    {doctorAppointmentCount > 0 ? `₹${Math.round(doctorWeeklyEarnings / doctorAppointmentCount).toLocaleString("en-IN")}` : "—"}
                   </p>
                   <p className="text-xs text-amber-600 mt-1">
-                    {selectedDoctorHighestDay ? `₹${(selectedDoctorHighestDay.earnings).toLocaleString("en-IN")}` : "—"}
+                    {doctorAppointmentCount > 0 ? `per appointment` : "—"}
                   </p>
                 </div>
 
                 {/* Stats */}
                 <div className="border-t border-slate-100 pt-4 mt-2">
                   <div className="flex justify-between items-center text-xs text-slate-600 mb-2">
-                    <span>Days this week</span>
-                    <span className="font-semibold">7</span>
+                    <span>Total weekly earnings</span>
+                    <span className="font-semibold">₹{doctorWeeklyEarnings.toLocaleString("en-IN")}</span>
                   </div>
                   <div className="flex justify-between items-center text-xs text-slate-600">
                     <span>Total appointments</span>
-                    <span className="font-semibold">{selectedDoctorData?.appointments || "—"}</span>
+                    <span className="font-semibold">{doctorLoading ? "..." : doctorAppointmentCount}</span>
                   </div>
                 </div>
               </CardContent>
