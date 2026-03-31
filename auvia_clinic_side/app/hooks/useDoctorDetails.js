@@ -27,10 +27,13 @@ export function useDoctorDetails(doctorId) {
         doctorsApi.getTimeOff(doctorId),
       ]);
 
+      console.log("Doctor Details Loaded:", { doctorData, scheduleData, timeOffData });
+
       setDoctor(doctorData || null);
-      setSchedules(scheduleData || []);
-      setTimeOffs(timeOffData || []);
+      setSchedules(Array.isArray(scheduleData) ? scheduleData : []);
+      setTimeOffs(Array.isArray(timeOffData) ? timeOffData : []);
     } catch (err) {
+      console.error("Failed to load doctor details:", err);
       setError(err.message || "Failed to load doctor details");
       setDoctor(null);
       setSchedules([]);

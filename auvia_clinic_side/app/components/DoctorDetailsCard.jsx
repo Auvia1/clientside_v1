@@ -25,6 +25,16 @@ function formatTime(timeStr) {
   };
 }
 
+function formatDate(dateStr) {
+  if (!dateStr) return null;
+  const date = new Date(dateStr);
+  return date.toLocaleDateString("en-IN", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 function formatDateRange(startTime, endTime) {
   const start = new Date(startTime);
   const end = new Date(endTime);
@@ -215,6 +225,8 @@ export default function DoctorDetailsCard({ doctorId }) {
                 const schedule = scheduleMap[day];
                 const { time: startTime, period: startPeriod } = formatTime(schedule?.start_time);
                 const { time: endTime, period: endPeriod } = formatTime(schedule?.end_time);
+                const effectiveFromDate = schedule?.effective_from ? formatDate(schedule.effective_from) : null;
+                const effectiveToDate = schedule?.effective_to ? formatDate(schedule.effective_to) : null;
 
                 return (
                   <div
@@ -224,13 +236,21 @@ export default function DoctorDetailsCard({ doctorId }) {
                     <div className="flex-1">
                       <span className="text-sm font-medium text-slate-700 block mb-1">{day}</span>
                       {schedule ? (
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs text-slate-600">
-                            {startTime} {startPeriod} - {endTime} {endPeriod}
-                          </span>
-                          <span className="text-[10px] text-slate-400">
-                            ({schedule.slot_duration_minutes}m slots)
-                          </span>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs text-slate-600">
+                              {startTime} {startPeriod} - {endTime} {endPeriod}
+                            </span>
+                            <span className="text-[10px] text-slate-400">
+                              ({schedule.slot_duration_minutes}m slots)
+                            </span>
+                          </div>
+                          {(effectiveFromDate || effectiveToDate) && (
+                            <div className="text-[10px] text-slate-400">
+                              Effective: {effectiveFromDate || "–"}
+                              {effectiveToDate ? ` to ${effectiveToDate}` : " (ongoing)"}
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <span className="text-sm text-slate-400">—</span>
