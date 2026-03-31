@@ -155,8 +155,48 @@ export const appointmentsApi = {
 export const doctorsApi = {
   list: () => request(`/doctors?clinic_id=${getClinicId()}`),
 
+  get: (doctorId) => request(`/doctors/${doctorId}`),
+
+  getSchedule: (doctorId) => request(`/doctors/${doctorId}/schedule?clinic_id=${getClinicId()}`),
+
+  getTimeOff: (doctorId) => request(`/doctors/${doctorId}/time-off?clinic_id=${getClinicId()}`),
+
   getSlots: (doctorId, date) =>
     request(`/doctors/${doctorId}/slots?date=${date}&clinic_id=${getClinicId()}`),
+
+  createSchedule: (doctorId, payload) =>
+    request(`/doctors/${doctorId}/schedule`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  createTimeOff: (doctorId, payload) =>
+    request(`/doctors/${doctorId}/time-off`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  updateSchedule: (doctorId, scheduleId, payload) =>
+    request(`/doctors/${doctorId}/schedule/${scheduleId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+
+  deleteSchedule: (doctorId, scheduleId) =>
+    request(`/doctors/${doctorId}/schedule/${scheduleId}`, {
+      method: "DELETE",
+    }),
+
+  updateTimeOff: (doctorId, timeOffId, payload) =>
+    request(`/doctors/${doctorId}/time-off/${timeOffId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+
+  deleteTimeOff: (doctorId, timeOffId) =>
+    request(`/doctors/${doctorId}/time-off/${timeOffId}`, {
+      method: "DELETE",
+    }),
 };
 
 // ─── Patients ─────────────────────────────────────────────────────────────────
