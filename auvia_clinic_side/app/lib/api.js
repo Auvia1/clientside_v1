@@ -217,6 +217,27 @@ export const activityApi = {
     request(`/activity?clinic_id=${getClinicId()}&limit=${limit}`),
 };
 
+// ─── Payments ─────────────────────────────────────────────────────────────────
+export const paymentsApi = {
+  list: (filters = {}) => {
+    const params = new URLSearchParams({ clinic_id: getClinicId() });
+    if (filters.status) params.set("status", filters.status);
+    if (filters.start_date) params.set("start_date", filters.start_date);
+    if (filters.end_date) params.set("end_date", filters.end_date);
+    if (filters.page) params.set("page", filters.page);
+    if (filters.limit) params.set("limit", filters.limit);
+    return request(`/payments?${params}`);
+  },
+
+  get: (id) => request(`/payments/${id}`),
+
+  create: (payload) =>
+    request("/payments", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+};
+
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 export const authApi = {
   logout: () => {

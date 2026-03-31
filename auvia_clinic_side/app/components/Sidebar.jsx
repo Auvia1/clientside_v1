@@ -232,7 +232,7 @@ import { Badge } from "./ui/badge";
 const navItems = [
 	{ label: "Dashboard", href: "/dashboard", icon: LayoutGrid },
 	{ label: "Schedule",  href: "/schedule",  icon: CalendarDays },
-	{ label: "Now",  href: "/now",  icon: TrendingUp },
+	{ label: "Earnings",  href: "/earnings",  icon: TrendingUp },
 ];
 
 const assistantItems = [
