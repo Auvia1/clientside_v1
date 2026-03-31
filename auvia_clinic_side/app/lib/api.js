@@ -260,3 +260,38 @@ export const authApi = {
 
   me: () => request("/auth/me"),
 };
+
+// ─── Calls ────────────────────────────────────────────────────────────────────
+export const callsApi = {
+  list: (filters = {}) => {
+    const params = new URLSearchParams({ clinic_id: getClinicId() });
+    if (filters.type) params.set("type", filters.type);
+    if (filters.agent_type) params.set("agent_type", filters.agent_type);
+    if (filters.start_date) params.set("start_date", filters.start_date);
+    if (filters.end_date) params.set("end_date", filters.end_date);
+    if (filters.page) params.set("page", filters.page);
+    if (filters.limit) params.set("limit", filters.limit);
+    return request(`/calls?${params}`);
+  },
+
+  get: (id) => request(`/calls/${id}`),
+
+  create: (payload) =>
+    request("/calls", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  update: (id, payload) =>
+    request(`/calls/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+
+  getStats: (filters = {}) => {
+    const params = new URLSearchParams();
+    if (filters.start_date) params.set("start_date", filters.start_date);
+    if (filters.end_date) params.set("end_date", filters.end_date);
+    return request(`/calls/stats/summary?${params}`);
+  },
+};
