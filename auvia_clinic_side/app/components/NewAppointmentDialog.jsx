@@ -337,10 +337,10 @@
 "use client";
 // components/NewAppointmentDialog.jsx
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Loader2, Plus } from "lucide-react";
 import { Button } from "./ui/button";
-import { appointmentsApi } from "../lib/api";
+import { appointmentsApi, doctorsApi } from "../lib/api";
 import { useDoctors, useSlots } from "../hooks/useSchedule";
 
 export default function NewAppointmentDialog({ onBooked, className }) {
@@ -349,6 +349,8 @@ export default function NewAppointmentDialog({ onBooked, className }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]           = useState(null);
   const [success, setSuccess]       = useState(false);
+  const [schedule, setSchedule]     = useState([]);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
 
   const { doctors, loading: doctorsLoading } = useDoctors();
 
@@ -363,7 +365,42 @@ export default function NewAppointmentDialog({ onBooked, className }) {
   });
 
   const selectedDoctor = doctors.find((d) => String(d.id) === String(form.doctor_id));
-  const slotDuration   = selectedDoctor?.consultation_duration_minutes || 30;
+
+  // Fetch doctor schedule when doctor is selected
+  useEffect(() => {
+    if (!form.doctor_id) {
+      setSchedule([]);
+      return;
+    }
+
+    async function fetchSchedule() {
+      setScheduleLoading(true);
+      try {
+        const scheduleData = await doctorsApi.getSchedule(form.doctor_id);
+        setSchedule(scheduleData);
+      } catch (err) {
+        console.error("Failed to fetch schedule:", err);
+        setSchedule([]);
+      } finally {
+        setScheduleLoading(false);
+      }
+    }
+
+    fetchSchedule();
+  }, [form.doctor_id]);
+
+  // Get slot duration for the selected date
+  const getSlotDurationForDate = () => {
+    if (!form.appointment_date || schedule.length === 0) return 30; // fallback
+
+    const date = new Date(form.appointment_date);
+    const dayOfWeek = date.getDay();
+
+    const scheduleForDay = schedule.find(s => s.day_of_week === dayOfWeek);
+    return scheduleForDay?.slot_duration_minutes || 30;
+  };
+
+  const slotDuration = getSlotDurationForDate();
 
   const { slots, loading: slotsLoading } = useSlots(form.doctor_id, form.appointment_date);
   const availableSlots = slots.filter((s) => s.available);
@@ -559,7 +596,7 @@ export default function NewAppointmentDialog({ onBooked, className }) {
           {/* ── Step 2 ── */}
           {step === 2 && (
             <div>
-              <p className="text-sm text-slate-500 mb-4">
+              <p className="text-sm text-slate-500 mb-1">
                 Available slots for <strong>{selectedDoctor?.name}</strong> on{" "}
                 <strong>
                   {new Date(form.appointment_date).toLocaleDateString("en-IN", {
@@ -567,6 +604,7 @@ export default function NewAppointmentDialog({ onBooked, className }) {
                   })}
                 </strong>
               </p>
+              <p className="text-xs text-slate-400 mb-4">Each slot is {slotDuration} minutes</p>
               {slotsLoading ? (
                 <div className="flex items-center justify-center py-10 gap-2 text-slate-400">
                   <Loader2 className="h-4 w-4 animate-spin" />
