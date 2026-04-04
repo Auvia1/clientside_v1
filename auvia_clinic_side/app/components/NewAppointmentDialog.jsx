@@ -341,7 +341,7 @@ import { useState, useEffect } from "react";
 import { Loader2, Plus } from "lucide-react";
 import { Button } from "./ui/button";
 import { appointmentsApi, doctorsApi } from "../lib/api";
-import { useDoctors, useSlots } from "../hooks/useSchedule";
+import { useDoctors, useSlots, useClinicSettings } from "../hooks/useSchedule";
 
 export default function NewAppointmentDialog({ onBooked, className }) {
   const [open, setOpen]             = useState(false);
@@ -353,6 +353,7 @@ export default function NewAppointmentDialog({ onBooked, className }) {
   const [scheduleLoading, setScheduleLoading] = useState(false);
 
   const { doctors, loading: doctorsLoading } = useDoctors();
+  const { isSlotsBased } = useClinicSettings();
 
   const [form, setForm] = useState({
     patient_name:     "",
@@ -403,7 +404,12 @@ export default function NewAppointmentDialog({ onBooked, className }) {
   const slotDuration = getSlotDurationForDate();
 
   const { slots, loading: slotsLoading } = useSlots(form.doctor_id, form.appointment_date);
-  const availableSlots = slots.filter((s) => s.available);
+
+  // If clinic uses slot-based booking, show only available slots
+  // If clinic uses token-based booking, show all slots (allow multiple appointments)
+  const availableSlots = isSlotsBased
+    ? slots.filter((s) => s.available)
+    : slots;
 
   function set(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -597,14 +603,18 @@ export default function NewAppointmentDialog({ onBooked, className }) {
           {step === 2 && (
             <div>
               <p className="text-sm text-slate-500 mb-1">
-                Available slots for <strong>{selectedDoctor?.name}</strong> on{" "}
+                {isSlotsBased ? "Available slots" : "Select a time"} for <strong>{selectedDoctor?.name}</strong> on{" "}
                 <strong>
                   {new Date(form.appointment_date).toLocaleDateString("en-IN", {
                     weekday: "long", month: "long", day: "numeric",
                   })}
                 </strong>
               </p>
-              <p className="text-xs text-slate-400 mb-4">Each slot is {slotDuration} minutes</p>
+              <p className="text-xs text-slate-400 mb-4">
+                {isSlotsBased
+                  ? `Each slot is ${slotDuration} minutes`
+                  : `Each slot is ${slotDuration} minutes (token-based queue system)`}
+              </p>
               {slotsLoading ? (
                 <div className="flex items-center justify-center py-10 gap-2 text-slate-400">
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -612,7 +622,7 @@ export default function NewAppointmentDialog({ onBooked, className }) {
                 </div>
               ) : availableSlots.length === 0 ? (
                 <div className="text-center py-8 text-slate-400 text-sm">
-                  No available slots on this date.
+                  {isSlotsBased ? "No available slots on this date." : "No time slots found on this date."}
                   <br />
                   <button className="mt-2 text-emerald-600 underline text-xs" onClick={() => setStep(1)}>
                     Change date

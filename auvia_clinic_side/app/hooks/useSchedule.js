@@ -3,7 +3,7 @@
 // hooks/useSchedule.js
 
 import { useState, useEffect, useCallback } from "react";
-import { appointmentsApi, doctorsApi, patientsApi } from "../lib/api";
+import { appointmentsApi, doctorsApi, patientsApi, clinicsApi } from "../lib/api";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -387,4 +387,40 @@ export function usePatientSearch() {
   }, [query]);
 
   return { query, setQuery, results, loading, error };
+}
+
+// ─── useClinicSettings ────────────────────────────────────────────────────────
+/**
+ * Fetches clinic settings including `is_slots_needed` flag
+ * which determines booking model (slot-based vs token-based)
+ */
+export function useClinicSettings() {
+  const [clinicSettings, setClinicSettings] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoading(true);
+        const settings = await clinicsApi.getSettingsByAuthClinic();
+        setClinicSettings(settings);
+        setError(null);
+      } catch (err) {
+        console.error("Failed to fetch clinic settings:", err);
+        setError(err.message);
+        // Default to slot-based if error
+        setClinicSettings({ is_slots_needed: true });
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  return {
+    clinicSettings,
+    isSlotsBased: clinicSettings?.is_slots_needed ?? true,
+    loading,
+    error,
+  };
 }

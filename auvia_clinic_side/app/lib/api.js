@@ -295,3 +295,12 @@ export const callsApi = {
     return request(`/calls/stats/summary?${params}`);
   },
 };
+
+// ─── Clinics ──────────────────────────────────────────────────────────────────
+export const clinicsApi = {
+  getSettings: (clinicId) =>
+    request(`/clinics/${clinicId}/settings`),
+
+  getSettingsByAuthClinic: () =>
+    request(`/clinics/${getClinicId()}/settings`),
+};
