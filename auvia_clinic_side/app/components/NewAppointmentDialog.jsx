@@ -405,8 +405,9 @@ export default function NewAppointmentDialog({ onBooked, className }) {
 
   const { slots, loading: slotsLoading } = useSlots(form.doctor_id, form.appointment_date);
 
-  // If clinic uses slot-based booking, show only available slots
-  // If clinic uses token-based booking, show all slots (allow multiple appointments)
+  // Filter slots based on clinic booking model
+  // If slot-based: show only available slots
+  // If token-based: show all slots
   const availableSlots = isSlotsBased
     ? slots.filter((s) => s.available)
     : slots;
@@ -603,7 +604,7 @@ export default function NewAppointmentDialog({ onBooked, className }) {
           {step === 2 && (
             <div>
               <p className="text-sm text-slate-500 mb-1">
-                {isSlotsBased ? "Available slots" : "Select a time"} for <strong>{selectedDoctor?.name}</strong> on{" "}
+                {isSlotsBased ? "Available slots" : "Select a time slot"} for <strong>{selectedDoctor?.name}</strong> on{" "}
                 <strong>
                   {new Date(form.appointment_date).toLocaleDateString("en-IN", {
                     weekday: "long", month: "long", day: "numeric",
@@ -634,7 +635,13 @@ export default function NewAppointmentDialog({ onBooked, className }) {
                     <button
                       key={slot.time}
                       onClick={() => selectSlot(slot.time)}
-                      className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm font-medium text-emerald-800 hover:bg-emerald-100 hover:border-emerald-400 transition-colors"
+                      className={`rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors ${
+                        isSlotsBased
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 hover:border-emerald-400"
+                          : slot.available
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 hover:border-emerald-400"
+                            : "border-slate-300 bg-slate-100 text-slate-600 hover:bg-slate-150 hover:border-slate-400 opacity-75"
+                      }`}
                     >
                       {formatSlotTime(slot.time)}
                     </button>

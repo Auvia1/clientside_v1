@@ -393,6 +393,8 @@ export function usePatientSearch() {
 /**
  * Fetches clinic settings including `is_slots_needed` flag
  * which determines booking model (slot-based vs token-based)
+ *
+ * API returns: { clinic, settings: { is_slots_needed, ... }, phone_numbers }
  */
 export function useClinicSettings() {
   const [clinicSettings, setClinicSettings] = useState(null);
@@ -403,14 +405,16 @@ export function useClinicSettings() {
     (async () => {
       try {
         setLoading(true);
-        const settings = await clinicsApi.getSettingsByAuthClinic();
-        setClinicSettings(settings);
+        const response = await clinicsApi.getSettingsByAuthClinic();
+        // API returns { clinic, settings, phone_numbers }
+        setClinicSettings(response);
         setError(null);
+        console.log("Clinic Settings Loaded:", response);
       } catch (err) {
         console.error("Failed to fetch clinic settings:", err);
         setError(err.message);
         // Default to slot-based if error
-        setClinicSettings({ is_slots_needed: true });
+        setClinicSettings({ settings: { is_slots_needed: true } });
       } finally {
         setLoading(false);
       }
@@ -419,7 +423,8 @@ export function useClinicSettings() {
 
   return {
     clinicSettings,
-    isSlotsBased: clinicSettings?.is_slots_needed ?? true,
+    // Access nested settings object: settings.is_slots_needed
+    isSlotsBased: clinicSettings?.settings?.is_slots_needed ?? true,
     loading,
     error,
   };
