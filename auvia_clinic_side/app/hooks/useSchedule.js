@@ -270,12 +270,11 @@ export function useSlots(doctorId, date) {
 // ─── useDoctorScheduleSlots ───────────────────────────────────────────────────
 /**
  * Fetches a doctor's schedule and generates dynamic time slots based on slot_duration_minutes.
- * Returns time slots and proportional card height.
+ * Card height remains fixed at h-[120px] for all doctors.
  */
 export function useDoctorScheduleSlots(doctorId) {
   const [slotDurationMinutes, setSlotDurationMinutes] = useState(60); // Default
   const [timeSlots, setTimeSlots]     = useState([]);
-  const [slotCardHeightClass, setSlotCardHeightClass] = useState("h-[120px]");
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState(null);
 
@@ -294,7 +293,6 @@ export function useDoctorScheduleSlots(doctorId) {
           // Fallback to 60-min slots if no schedule found
           setSlotDurationMinutes(60);
           setTimeSlots(generateTimeSlots("08:00:00", "17:00:00", 60));
-          setSlotCardHeightClass("h-[120px]");
           setError(null);
           return;
         }
@@ -305,14 +303,12 @@ export function useDoctorScheduleSlots(doctorId) {
 
         setSlotDurationMinutes(slotDuration);
         setTimeSlots(generateTimeSlots(schedule.start_time, schedule.end_time, slotDuration));
-        setSlotCardHeightClass(calculateCardHeight(slotDuration));
         setError(null);
       } catch (err) {
         console.error("Error fetching doctor schedule:", err);
         // Fallback to default
         setSlotDurationMinutes(60);
         setTimeSlots(generateTimeSlots("08:00:00", "17:00:00", 60));
-        setSlotCardHeightClass("h-[120px]");
         setError(err.message);
       } finally {
         setLoading(false);
@@ -320,7 +316,8 @@ export function useDoctorScheduleSlots(doctorId) {
     })();
   }, [doctorId]);
 
-  return { slotDurationMinutes, timeSlots, slotCardHeightClass, loading, error };
+  // Always return fixed height h-[120px] for all doctors
+  return { slotDurationMinutes, timeSlots, slotCardHeightClass: "h-[120px]", loading, error };
 }
 
 /**
@@ -356,26 +353,6 @@ function generateTimeSlots(startTimeStr, endTimeStr, slotDurationMinutes) {
   }
 
   return slots;
-}
-
-/**
- * Calculate proportional Tailwind height class based on slot duration.
- * 60 minutes = h-[120px], 30 minutes = h-[60px], etc.
- */
-function calculateCardHeight(slotDurationMinutes) {
-  const baseHeight = 120; // pixels for 60-minute slot
-  const proposedHeight = Math.round((slotDurationMinutes / 60) * baseHeight);
-
-  // Map to Tailwind classes for best compatibility
-  const heightMap = {
-    15: "h-[30px]",
-    20: "h-[40px]",
-    30: "h-[60px]",
-    45: "h-[90px]",
-    60: "h-[120px]",
-  };
-
-  return heightMap[slotDurationMinutes] || `h-[${proposedHeight}px]`;
 }
 
 // ─── usePatientSearch ─────────────────────────────────────────────────────────
