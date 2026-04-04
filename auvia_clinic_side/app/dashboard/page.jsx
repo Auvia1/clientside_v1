@@ -1,15 +1,16 @@
 
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import {
-  Calendar, PhoneCall, Activity,
+  Calendar, PhoneCall,
   RefreshCw, AlertCircle, Loader2
 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import Sidebar from "../components/Sidebar";
 import NewAppointmentDialog from "../components/NewAppointmentDialog";
 import DoctorDetailsCard from "../components/DoctorDetailsCard";
+import LiveActivityPanel from "../components/LiveActivityPanel";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
@@ -18,24 +19,6 @@ import { useSchedule } from "../hooks/useSchedule";
 import { useOverallCallStats } from "../hooks/useOverallCallStats";
 import { doctorsApi } from "../lib/api";
 import { calculatePercentage } from "../lib/utils";
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function activityDot(type) {
-  return {
-    agent_booking:  "bg-emerald-400",
-    manual_booking: "bg-sky-400",
-    active_call:    "bg-amber-400 animate-pulse",
-    cancellation:   "bg-red-400",
-  }[type] || "bg-slate-300";
-}
-
-function activityAge(createdAt) {
-  const mins = Math.floor((Date.now() - new Date(createdAt).getTime()) / 60_000);
-  if (mins < 1)  return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  return `${Math.floor(mins / 60)}h ago`;
-}
 
 // ─── useDoctors ───────────────────────────────────────────────────────────────
 
@@ -49,83 +32,6 @@ function useDoctors() {
   }, []);
 
   return doctors;
-}
-
-// ─── useLiveActivity ──────────────────────────────────────────────────────────
-
-function useLiveActivity() {
-  const [activities, setActivities] = useState([]);
-  const [wsStatus, setWsStatus]     = useState("connecting");
-  const wsRef          = useRef(null);
-  const reconnectTimer = useRef(null);
-  const mountedRef     = useRef(false);
-  const retryCount     = useRef(0);
-
-  useEffect(() => {
-    mountedRef.current = true;
-
-    const clinicId = localStorage.getItem("auvia_clinic_id") || "";
-
-    fetch(`/api/activity?limit=10&clinic_id=${clinicId}`)
-      .then((r) => r.json())
-      .then((json) => { if (json.success && mountedRef.current) setActivities(json.data); })
-      .catch(() => {});
-
-    function connectWs() {
-      if (!mountedRef.current) return;
-
-      if (wsRef.current) {
-        wsRef.current.onclose = null;
-        wsRef.current.onerror = null;
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-
-      const proto = window.location.protocol === "https:" ? "wss" : "ws";
-      const ws    = new WebSocket(`${proto}://${window.location.host}/ws/activity`);
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        if (!mountedRef.current) { ws.close(); return; }
-        setWsStatus("open");
-        retryCount.current = 0;
-        clearTimeout(reconnectTimer.current);
-      };
-      ws.onmessage = (e) => {
-        try {
-          const msg = JSON.parse(e.data);
-          if (msg.type === "activity" && mountedRef.current) {
-            setActivities((prev) => [msg.data, ...prev].slice(0, 20));
-          }
-        } catch (_) {}
-      };
-      const scheduleReconnect = () => {
-        if (!mountedRef.current) return;
-        setWsStatus("closed");
-        const delay = Math.min(3000 * Math.pow(2, retryCount.current), 30000);
-        retryCount.current += 1;
-        reconnectTimer.current = setTimeout(connectWs, delay);
-      };
-      ws.onclose = scheduleReconnect;
-      ws.onerror = () => { ws.onclose = null; ws.close(); scheduleReconnect(); };
-    }
-
-    const initTimer = setTimeout(connectWs, 150);
-
-    return () => {
-      mountedRef.current = false;
-      clearTimeout(initTimer);
-      clearTimeout(reconnectTimer.current);
-      if (wsRef.current) {
-        wsRef.current.onclose = null;
-        wsRef.current.onerror = null;
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-    };
-  }, []);
-
-  return { activities, wsStatus };
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -243,7 +149,6 @@ export default function DashboardPage() {
   const [timeNow, setTimeNow]                   = useState("");
 
   const doctors                                 = useDoctors();
-  const { activities, wsStatus }                = useLiveActivity();
   const { stats: overallCallStats, loading: overallLoading } = useOverallCallStats();
 
   const { schedule, loading, error, lastRefresh, refresh, updateAppointmentStatus } =
@@ -437,50 +342,9 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
 
+
               {/* ── Live Activity ── */}
-              <Card className="border-slate-100 shadow-sm transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-md">
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <CardTitle>Live Activity</CardTitle>
-                    <Badge
-                      variant={wsStatus === "open" ? "success" : "warning"}
-                      className="text-[9px]"
-                    >
-                      {wsStatus === "open" ? "Live" : "Reconnecting…"}
-                    </Badge>
-                  </div>
-                  <Activity className={`h-4 w-4 ${wsStatus === "open" ? "text-emerald-500" : "text-slate-300"}`} />
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-col gap-4">
-                    {activities.length === 0 ? (
-                      <p className="text-xs text-slate-400 py-6 text-center">
-                        No recent activity yet.
-                      </p>
-                    ) : (
-                      activities.map((item) => (
-                        <div key={item.id} className="flex gap-3 items-start">
-                          <span className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${activityDot(item.event_type)}`} />
-                          <div className="min-w-0">
-                            <p className="text-xs text-slate-400">{activityAge(item.created_at)}</p>
-                            <p className="text-sm text-slate-700 leading-snug">{item.title}</p>
-                            {item.meta?.appointment_start && (
-                              <p className="text-xs text-slate-400 truncate">
-                                {new Date(item.meta.appointment_start).toLocaleTimeString("en-IN", {
-                                  hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata",
-                                })}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      ))
-                    )}
-                    <Button className="mt-2 w-full bg-slate-800 text-white hover:bg-slate-700">
-                      Return Call
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+              <LiveActivityPanel />
             </div>
           </div>
 
