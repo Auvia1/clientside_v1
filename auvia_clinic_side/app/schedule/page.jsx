@@ -944,7 +944,7 @@ import {
   FiX, FiRefreshCw, FiAlertCircle, FiLoader, FiActivity,
   FiCheck, FiUserX,
 } from "react-icons/fi";
-import { useClinicSchedule, usePatientSearch } from "../hooks/useSchedule";
+import { useClinicSchedule, usePatientSearch, useDoctorScheduleSlots } from "../hooks/useSchedule";
 import { appointmentsApi } from "../lib/api";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -975,11 +975,18 @@ function slotLabelToHour(label) {
   return h;
 }
 
-function buildSlotMap(appts = []) {
+function buildSlotMap(appts = [], timeSlots, slotDurationMinutes) {
   const map = {};
-  for (const slot of TIME_SLOTS) {
-    const slotHour = slotLabelToHour(slot);
-    map[slot] = appts.filter((a) => getISTHour(a.appointment_start) === slotHour);
+  for (const slot of timeSlots) {
+    const slotStartHour = slotLabelToHour(slot);
+    const slotStartMinutes = slotStartHour * 60 + extractMinutesFromLabel(slot);
+    const slotEndMinutes = slotStartMinutes + slotDurationMinutes;
+
+    map[slot] = appts.filter((a) => {
+      const apptHour = getISTHour(a.appointment_start);
+      const apptMinutes = apptHour * 60 + extractMinutesFromLabel(a.appointment_start);
+      return apptMinutes >= slotStartMinutes && apptMinutes < slotEndMinutes;
+    });
   }
   return map;
 }
@@ -1090,15 +1097,14 @@ function buildWeekLabel(anchorDate) {
   return `${s} – ${e}`;
 }
 
-const TIME_SLOTS = [
-  "08:00 AM", "09:00 AM", "10:00 AM", "11:00 AM",
-  "12:00 PM", "01:00 PM", "02:00 PM", "03:00 PM",
-];
-
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-// Single source of truth — change here to resize every slot card, skeleton, and time label column
-const SLOT_CARD_H = "h-[120px]";
+// Helper: Extract minutes from time label (e.g., "09:30 AM" -> 30)
+function extractMinutesFromLabel(label) {
+  const [timePart] = label.split(" ");
+  const [, m] = timePart.split(":").map(Number);
+  return m || 0;
+}
 
 // ─── useLiveActivity ──────────────────────────────────────────────────────────
 
@@ -1203,7 +1209,7 @@ function useWeekSchedule(doctorId, anchorDate) {
 
 // ─── AppointmentCell ──────────────────────────────────────────────────────────
 
-function AppointmentCell({ appt, onStatusChange }) {
+function AppointmentCell({ appt, onStatusChange, slotCardHeightClass = "h-[120px]" }) {
   const [updating, setUpdating]       = useState(false);
   const [errorMsg, setErrorMsg]       = useState(null);
   const [toastMsg, setToastMsg]       = useState(null);
@@ -1242,7 +1248,7 @@ function AppointmentCell({ appt, onStatusChange }) {
 
   return (
     <Card
-      className={`${SLOT_CARD_H} overflow-hidden relative border-l-[3px] ${borderColor} bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md`}
+      className={`${slotCardHeightClass} overflow-hidden relative border-l-[3px] ${borderColor} bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md`}
     >
       <CardContent className="p-3 pt-2.5 h-full flex flex-col overflow-hidden">
 
@@ -1307,17 +1313,17 @@ function AppointmentCell({ appt, onStatusChange }) {
 
 // ─── SlotCell ─────────────────────────────────────────────────────────────────
 
-function SlotCell({ appts = [], onStatusChange }) {
+function SlotCell({ appts = [], onStatusChange, slotCardHeightClass = "h-[120px]" }) {
   if (appts.length === 0) {
     return (
-      <div className={SLOT_CARD_H}>
+      <div className={slotCardHeightClass}>
         <Card className="h-full bg-white/60" />
       </div>
     );
   }
   return (
-    <div className={`${SLOT_CARD_H} relative`}>
-      <AppointmentCell appt={appts[0]} onStatusChange={onStatusChange} />
+    <div className={`${slotCardHeightClass} relative`}>
+      <AppointmentCell appt={appts[0]} onStatusChange={onStatusChange} slotCardHeightClass={slotCardHeightClass} />
       {appts.length > 1 && (
         <div className="absolute bottom-0 inset-x-0 z-10 flex items-center justify-center bg-white/90 backdrop-blur-sm py-0.5 border-t border-slate-100 rounded-b-lg">
           <p className="text-[9px] font-semibold text-slate-400">
@@ -1336,6 +1342,7 @@ function SlotCell({ appts = [], onStatusChange }) {
 
 function WeekView({ doctor, anchorDate }) {
   const { weekData, loading } = useWeekSchedule(doctor.id, anchorDate);
+  const { slotDurationMinutes, timeSlots, slotCardHeightClass, loading: slotsLoading } = useDoctorScheduleSlots(doctor.id);
   const weekDays = getWeekDays(anchorDate);
   const todayStr = new Date().toISOString().slice(0, 10);
 
@@ -1343,20 +1350,20 @@ function WeekView({ doctor, anchorDate }) {
     const maps = {};
     for (const d of weekDays) {
       const ymd = toYMD(d);
-      maps[ymd] = buildSlotMap(weekData[ymd] || []);
+      maps[ymd] = buildSlotMap(weekData[ymd] || [], timeSlots, slotDurationMinutes);
     }
     return maps;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [weekData]);
+  }, [weekData, timeSlots, slotDurationMinutes]);
 
-  if (loading) {
+  if (loading || slotsLoading) {
     return (
       <div className="space-y-3">
         {Array.from({ length: 5 }).map((_, i) => (
           <div key={i} className="flex gap-2">
-            <div className={`w-[90px] ${SLOT_CARD_H} animate-pulse rounded-xl bg-slate-100 shrink-0`} />
+            <div className={`w-[90px] ${slotCardHeightClass} animate-pulse rounded-xl bg-slate-100 shrink-0`} />
             {[0,1,2,3,4,5,6].map((j) => (
-              <div key={j} className={`flex-1 ${SLOT_CARD_H} animate-pulse rounded-xl bg-slate-50`} />
+              <div key={j} className={`flex-1 ${slotCardHeightClass} animate-pulse rounded-xl bg-slate-50`} />
             ))}
           </div>
         ))}
@@ -1413,13 +1420,13 @@ function WeekView({ doctor, anchorDate }) {
 
       {/* Time rows */}
       <div className="space-y-2.5">
-        {TIME_SLOTS.map((slot) => (
+        {timeSlots.map((slot) => (
           <div
             key={slot}
             className="grid gap-3 items-start"
             style={{ gridTemplateColumns: `110px repeat(7, minmax(155px, 1fr))` }}
           >
-            <div className={`flex flex-col items-end pr-3 pt-3 shrink-0 ${SLOT_CARD_H}`}>
+            <div className={`flex flex-col items-end pr-3 pt-3 shrink-0 ${slotCardHeightClass}`}>
               <span className="text-[11px] font-semibold text-slate-500 tabular-nums leading-none">
                 {slot}
               </span>
@@ -1432,6 +1439,7 @@ function WeekView({ doctor, anchorDate }) {
                   key={ymd}
                   appts={appts}
                   onStatusChange={(id, status) => appointmentsApi.updateStatus(id, status)}
+                  slotCardHeightClass={slotCardHeightClass}
                 />
               );
             })}
@@ -1558,6 +1566,14 @@ function LiveActivityPanel({ activities, wsStatus }) {
 
 // ─── SchedulePage ─────────────────────────────────────────────────────────────
 
+// For AllDoctorsView, use static 1-hour slots
+function generateAllDoctorsTimeSlots() {
+  return [
+    "08:00 AM", "09:00 AM", "10:00 AM", "11:00 AM",
+    "12:00 PM", "01:00 PM", "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM",
+  ];
+}
+
 export default function SchedulePage() {
   const [activeMonitoring, setActiveMonitoring] = useState(true);
   const [doctorFilter, setDoctorFilter]         = useState("all");
@@ -1599,16 +1615,20 @@ export default function SchedulePage() {
 
   const visibleDoctors = doctors;
 
+  // For AllDoctorsView, use 15-min slot granularity to show all possible slots
+  const allDoctorsTimeSlots = useMemo(() => generateAllDoctorsTimeSlots(), []);
+
   const doctorSlotMaps = useMemo(() => {
     const maps = {};
     for (const doctor of visibleDoctors) {
       const raw   = appointmentMap[doctor.id] || {};
       const appts = Array.isArray(raw) ? raw : Object.values(raw);
-      maps[doctor.id] = buildSlotMap(appts);
+      // For AllDoctorsView, use 60-min slots (static 1-hour view)
+      maps[doctor.id] = buildSlotMap(appts, allDoctorsTimeSlots, 60);
     }
     return maps;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleDoctors, appointmentMap]);
+  }, [visibleDoctors, appointmentMap, allDoctorsTimeSlots]);
 
   return (
     <div className="min-h-screen bg-[#f5f8fb] text-slate-900">
@@ -1812,9 +1832,9 @@ export default function SchedulePage() {
                   <div className="space-y-3 mt-2">
                     {Array.from({ length: 6 }).map((_, i) => (
                       <div key={i} className="flex gap-3">
-                        <div className={`w-[90px] ${SLOT_CARD_H} animate-pulse rounded-xl bg-slate-100 shrink-0`} />
+                        <div className="w-[90px] h-[120px] animate-pulse rounded-xl bg-slate-100 shrink-0" />
                         {[1,2,3].map((j) => (
-                          <div key={j} className={`flex-1 ${SLOT_CARD_H} animate-pulse rounded-xl bg-slate-50`} />
+                          <div key={j} className="flex-1 h-[120px] animate-pulse rounded-xl bg-slate-50" />
                         ))}
                       </div>
                     ))}
@@ -1828,13 +1848,13 @@ export default function SchedulePage() {
 
                 ) : (
                   <div className="mt-2 space-y-3">
-                    {TIME_SLOTS.map((slot) => (
+                    {allDoctorsTimeSlots.map((slot) => (
                       <div
                         key={slot}
                         className="grid gap-3 items-start"
                         style={{ gridTemplateColumns: `110px repeat(${visibleDoctors.length}, minmax(155px, 1fr))` }}
                       >
-                        <div className={`flex flex-col items-end pr-3 pt-3 shrink-0 ${SLOT_CARD_H}`}>
+                        <div className="flex flex-col items-end pr-3 pt-3 shrink-0 h-[120px]">
                           <span className="text-[11px] font-semibold text-slate-500 tabular-nums">
                             {slot}
                           </span>
@@ -1844,6 +1864,7 @@ export default function SchedulePage() {
                             key={`${slot}-${doctor.id}`}
                             appts={doctorSlotMaps[doctor.id]?.[slot] ?? []}
                             onStatusChange={updateStatus}
+                            slotCardHeightClass="h-[120px]"
                           />
                         ))}
                       </div>

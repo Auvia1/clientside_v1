@@ -267,6 +267,117 @@ export function useSlots(doctorId, date) {
   return { slots, loading, error };
 }
 
+// ─── useDoctorScheduleSlots ───────────────────────────────────────────────────
+/**
+ * Fetches a doctor's schedule and generates dynamic time slots based on slot_duration_minutes.
+ * Returns time slots and proportional card height.
+ */
+export function useDoctorScheduleSlots(doctorId) {
+  const [slotDurationMinutes, setSlotDurationMinutes] = useState(60); // Default
+  const [timeSlots, setTimeSlots]     = useState([]);
+  const [slotCardHeightClass, setSlotCardHeightClass] = useState("h-[120px]");
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState(null);
+
+  useEffect(() => {
+    if (!doctorId) {
+      setLoading(false);
+      return;
+    }
+
+    (async () => {
+      try {
+        setLoading(true);
+        const schedules = await doctorsApi.getSchedule(doctorId);
+
+        if (!schedules || schedules.length === 0) {
+          // Fallback to 60-min slots if no schedule found
+          setSlotDurationMinutes(60);
+          setTimeSlots(generateTimeSlots("08:00:00", "17:00:00", 60));
+          setSlotCardHeightClass("h-[120px]");
+          setError(null);
+          return;
+        }
+
+        // Get first valid schedule
+        const schedule = schedules[0];
+        const slotDuration = schedule.slot_duration_minutes || 60;
+
+        setSlotDurationMinutes(slotDuration);
+        setTimeSlots(generateTimeSlots(schedule.start_time, schedule.end_time, slotDuration));
+        setSlotCardHeightClass(calculateCardHeight(slotDuration));
+        setError(null);
+      } catch (err) {
+        console.error("Error fetching doctor schedule:", err);
+        // Fallback to default
+        setSlotDurationMinutes(60);
+        setTimeSlots(generateTimeSlots("08:00:00", "17:00:00", 60));
+        setSlotCardHeightClass("h-[120px]");
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [doctorId]);
+
+  return { slotDurationMinutes, timeSlots, slotCardHeightClass, loading, error };
+}
+
+/**
+ * Convert HH:MM:SS time to total minutes (from midnight).
+ */
+function timeToMinutes(timeStr) {
+  const [h, m] = timeStr.split(":").map(Number);
+  return h * 60 + m;
+}
+
+/**
+ * Convert minutes from midnight to "HH:MM AM/PM" format.
+ */
+function minutesToTimeLabel(minutes) {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  const period = hours >= 12 ? "PM" : "AM";
+  const displayHours = hours % 12 || 12;
+  const minStr = mins === 0 ? "00" : mins.toString().padStart(2, "0");
+  return `${displayHours.toString().padStart(2, " ")}:${minStr} ${period}`.replace(/^ /, "");
+}
+
+/**
+ * Generate array of time slot labels from start_time to end_time at given interval.
+ */
+function generateTimeSlots(startTimeStr, endTimeStr, slotDurationMinutes) {
+  const slots = [];
+  const startMinutes = timeToMinutes(startTimeStr);
+  const endMinutes = timeToMinutes(endTimeStr);
+
+  for (let current = startMinutes; current < endMinutes; current += slotDurationMinutes) {
+    slots.push(minutesToTimeLabel(current));
+  }
+
+  return slots;
+}
+
+/**
+ * Calculate proportional Tailwind height class based on slot duration.
+ * 60 minutes = h-[120px], 30 minutes = h-[60px], etc.
+ */
+function calculateCardHeight(slotDurationMinutes) {
+  const baseHeight = 120; // pixels for 60-minute slot
+  const proposedHeight = Math.round((slotDurationMinutes / 60) * baseHeight);
+
+  // Map to Tailwind classes for best compatibility
+  const heightMap = {
+    15: "h-[30px]",
+    20: "h-[40px]",
+    30: "h-[60px]",
+    45: "h-[90px]",
+    60: "h-[120px]",
+  };
+
+  return heightMap[slotDurationMinutes] || `h-[${proposedHeight}px]`;
+}
+
 // ─── usePatientSearch ─────────────────────────────────────────────────────────
 
 export function usePatientSearch() {
