@@ -303,4 +303,66 @@ export const clinicsApi = {
 
   getSettingsByAuthClinic: () =>
     request(`/clinics/${getClinicId()}/settings`),
+
+  getIsSlotNeeded: async (clinicId) => {
+    const token = getToken();
+    const res = await fetch(`${BASE_URL}/clinics/${clinicId}/is-slots-needed`, {
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      throw new Error(`Server error: ${res.status} ${res.statusText}`);
+    }
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || data.message || `Request failed (${res.status})`);
+    }
+
+    // This endpoint returns is_slots_needed at root level, not in .data
+    return {
+      is_slots_needed: data.is_slots_needed,
+      clinic_id: data.clinic_id,
+    };
+  },
+};
+
+// ─── Slots ────────────────────────────────────────────────────────────────────
+export const slotsApi = {
+  list: (filters = {}) => {
+    const params = new URLSearchParams();
+    if (filters.clinic_id) params.set("clinic_id", filters.clinic_id);
+    if (filters.doctor_id) params.set("doctor_id", filters.doctor_id);
+    if (filters.status) params.set("status", filters.status);
+    if (filters.start_date) params.set("start_date", filters.start_date);
+    if (filters.end_date) params.set("end_date", filters.end_date);
+    if (filters.page) params.set("page", filters.page);
+    if (filters.limit) params.set("limit", filters.limit);
+    return request(`/slots?${params}`);
+  },
+
+  get: (id) =>
+    request(`/slots/${id}`),
+
+  create: (payload) =>
+    request("/slots", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  update: (id, payload) =>
+    request(`/slots/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+
+  delete: (id) =>
+    request(`/slots/${id}`, {
+      method: "DELETE",
+    }),
 };

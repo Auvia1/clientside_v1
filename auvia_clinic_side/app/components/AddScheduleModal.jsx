@@ -277,13 +277,11 @@
 // }
 
 
-"use client";
-
 import { useState, useEffect, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Button } from "./ui/button";
-import { Loader2 } from "lucide-react";
-import { doctorsApi } from "../lib/api";
+import { Loader2, Plus, Trash2 } from "lucide-react";
+import { doctorsApi, clinicsApi, slotsApi } from "../lib/api";
 
 const DAYS_OF_WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -310,8 +308,32 @@ export default function AddScheduleModal({ open, onOpenChange, doctorId, onAdded
   const [effectiveFrom, setEffectiveFrom] = useState(new Date().toISOString().split("T")[0]);
   const [effectiveTo, setEffectiveTo] = useState("");
   const [maxAppointmentsPerSlot, setMaxAppointmentsPerSlot] = useState([]);
+  const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [isSlotNeeded, setIsSlotNeeded] = useState(true);
+
+  // Fetch clinic settings to check if slots are needed
+  useEffect(() => {
+    if (!open) return;
+
+    const fetchClinicSettings = async () => {
+      try {
+        const clinicId = localStorage.getItem("auvia_clinic_id");
+        if (!clinicId) return;
+
+        const response = await clinicsApi.getIsSlotNeeded(clinicId);
+        console.log("Clinic settings response:", response);
+        console.log("is_slots_needed value:", response.is_slots_needed);
+        setIsSlotNeeded(response.is_slots_needed ?? true);
+      } catch (err) {
+        console.error("Failed to fetch clinic settings:", err);
+        setIsSlotNeeded(true);
+      }
+    };
+
+    fetchClinicSettings();
+  }, [open]);
 
   // Calculate number of slots whenever these values change
   const numSlots = useMemo(() => {
@@ -320,7 +342,7 @@ export default function AddScheduleModal({ open, onOpenChange, doctorId, onAdded
 
   // Initialize or resize maxAppointmentsPerSlot array when numSlots changes
   useEffect(() => {
-    if (numSlots > 0) {
+    if (numSlots > 0 && !isSlotNeeded) {
       setMaxAppointmentsPerSlot((prev) => {
         const newArray = new Array(numSlots).fill(1);
         // Preserve existing values if array is resized
@@ -332,13 +354,37 @@ export default function AddScheduleModal({ open, onOpenChange, doctorId, onAdded
     } else {
       setMaxAppointmentsPerSlot([]);
     }
-  }, [numSlots]);
+  }, [numSlots, isSlotNeeded]);
 
   const handleSlotChange = (index, value) => {
     const newArray = [...maxAppointmentsPerSlot];
     // FIX: always store as integer, never as string
     newArray[index] = Math.max(1, parseInt(value) || 1);
     setMaxAppointmentsPerSlot(newArray);
+  };
+
+  const addSlot = () => {
+    setSlots([
+      ...slots,
+      {
+        id: Date.now(),
+        start_time: "09:00:00",
+        end_time: "10:00:00",
+        max_appointments_per_slot: 1,
+      },
+    ]);
+  };
+
+  const removeSlot = (id) => {
+    setSlots(slots.filter((slot) => slot.id !== id));
+  };
+
+  const updateSlot = (id, field, value) => {
+    setSlots(
+      slots.map((slot) =>
+        slot.id === id ? { ...slot, [field]: value } : slot
+      )
+    );
   };
 
   const handleSubmit = async (e) => {
@@ -355,6 +401,11 @@ export default function AddScheduleModal({ open, onOpenChange, doctorId, onAdded
       return;
     }
 
+    if (!isSlotNeeded && slots.length === 0) {
+      setError("Please add at least one slot");
+      return;
+    }
+
     setLoading(true);
     try {
       const clinicId = localStorage.getItem("auvia_clinic_id");
@@ -364,11 +415,34 @@ export default function AddScheduleModal({ open, onOpenChange, doctorId, onAdded
         return;
       }
 
+      // Handle slot creation if isSlotNeeded is false
+      if (!isSlotNeeded && slots.length > 0) {
+        for (const slot of slots) {
+          try {
+            await slotsApi.create({
+              clinic_id: clinicId,
+              doctor_id: doctorId,
+              day_of_week: parseInt(dayOfWeek),
+              start_time: slot.start_time,
+              end_time: slot.end_time,
+              effective_from: effectiveFrom,
+              effective_to: effectiveTo || null,
+              max_appointments_per_slot: slot.max_appointments_per_slot,
+              status: "open",
+            });
+          } catch (err) {
+            setError(`Failed to create slot: ${err.message}`);
+            setLoading(false);
+            return;
+          }
+        }
+      }
+
       const calculatedSlots = calculateNumSlots(startTime, endTime, slotDuration);
 
       // FIX: ensure every value is a proper integer before sending
       const slotsArray =
-        calculatedSlots > 0
+        calculatedSlots > 0 && !isSlotNeeded
           ? (maxAppointmentsPerSlot.length === calculatedSlots
               ? maxAppointmentsPerSlot
               : new Array(calculatedSlots).fill(1)
@@ -395,6 +469,7 @@ export default function AddScheduleModal({ open, onOpenChange, doctorId, onAdded
       setEffectiveFrom(new Date().toISOString().split("T")[0]);
       setEffectiveTo("");
       setMaxAppointmentsPerSlot([]);
+      setSlots([]);
       setError(null);
 
       onOpenChange(false);
@@ -480,31 +555,104 @@ export default function AddScheduleModal({ open, onOpenChange, doctorId, onAdded
             />
           </div>
 
-          {numSlots > 0 && (
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-3">
-                Max Appointments per Slot ({numSlots} slots calculated)
-              </label>
-              <div className="grid grid-cols-3 gap-3">
-                {maxAppointmentsPerSlot.map((value, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <label className="text-xs font-medium text-slate-600 w-20">
-                      Slot {idx + 1}
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={value}
-                      onChange={(e) => handleSlotChange(idx, e.target.value)}
-                      className="flex-1 rounded-lg border border-slate-200 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                      disabled={loading}
-                    />
-                  </div>
-                ))}
+          {!isSlotNeeded && (
+            <div className="space-y-3 border-t pt-4">
+              <div className="flex items-center justify-between">
+                <label className="block text-sm font-medium text-slate-700">
+                  Time Slots
+                </label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={addSlot}
+                  disabled={loading}
+                  className="gap-1"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Slot
+                </Button>
               </div>
-              <p className="text-xs text-slate-500 mt-2">
-                Set the maximum number of concurrent appointments for each slot
-              </p>
+
+              {slots.length === 0 ? (
+                <p className="text-xs text-slate-500 text-center py-4">
+                  No slots added yet. Click "Add Slot" to create one.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {slots.map((slot) => (
+                    <div
+                      key={slot.id}
+                      className="border border-slate-200 rounded-lg p-3 space-y-3"
+                    >
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-slate-600 mb-1">
+                            Start Time
+                          </label>
+                          <input
+                            type="time"
+                            value={slot.start_time.substring(0, 5)}
+                            onChange={(e) => {
+                              const time = `${e.target.value}:00`;
+                              updateSlot(slot.id, "start_time", time);
+                            }}
+                            disabled={loading}
+                            className="w-full rounded-lg border border-slate-200 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-600 mb-1">
+                            End Time
+                          </label>
+                          <input
+                            type="time"
+                            value={slot.end_time.substring(0, 5)}
+                            onChange={(e) => {
+                              const time = `${e.target.value}:00`;
+                              updateSlot(slot.id, "end_time", time);
+                            }}
+                            disabled={loading}
+                            className="w-full rounded-lg border border-slate-200 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-end gap-3">
+                        <div className="flex-1">
+                          <label className="block text-xs font-medium text-slate-600 mb-1">
+                            Max Appointments
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={slot.max_appointments_per_slot}
+                            onChange={(e) =>
+                              updateSlot(
+                                slot.id,
+                                "max_appointments_per_slot",
+                                Math.max(1, parseInt(e.target.value) || 1)
+                              )
+                            }
+                            disabled={loading}
+                            className="w-full rounded-lg border border-slate-200 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => removeSlot(slot.id)}
+                          disabled={loading}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
