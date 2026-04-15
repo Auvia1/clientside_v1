@@ -34,6 +34,7 @@ export default function EditScheduleModal({ open, onOpenChange, schedule, doctor
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [isSlotNeeded, setIsSlotNeeded] = useState(true);
+  const [loadingSlots, setLoadingSlots] = useState(false);
 
   const [form, setForm] = useState({
     day_of_week: 0,
@@ -88,7 +89,50 @@ export default function EditScheduleModal({ open, onOpenChange, schedule, doctor
         setMaxAppointmentsPerSlot([]);
       }
 
-      // Load slots if they exist
+      // Fetch all slots for this day
+      if (!isSlotNeeded) {
+        fetchSlotsForDay(schedule.day_of_week);
+      } else {
+        // Load slots if they exist
+        if (schedule.slots && Array.isArray(schedule.slots)) {
+          setSlots(
+            schedule.slots.map((slot) => ({
+              ...slot,
+              id: slot.id || Date.now(),
+            }))
+          );
+        } else {
+          setSlots([]);
+        }
+      }
+
+      setError(null);
+    }
+  }, [schedule, open, isSlotNeeded]);
+
+  // Fetch all slots for the day
+  const fetchSlotsForDay = async (dayOfWeek) => {
+    try {
+      setLoadingSlots(true);
+      const clinicId = localStorage.getItem("auvia_clinic_id");
+      const response = await slotsApi.list({
+        clinic_id: clinicId,
+        doctor_id: doctorId,
+        day_of_week: dayOfWeek,
+      });
+
+      const fetchedSlots = Array.isArray(response) ? response : response.data || [];
+      setSlots(
+        fetchedSlots.map((slot) => ({
+          ...slot,
+          id: slot.id || Date.now(),
+        }))
+      );
+      setLoadingSlots(false);
+    } catch (err) {
+      console.error("Failed to fetch slots:", err);
+      setLoadingSlots(false);
+      // Fall back to schedule slots if fetch fails
       if (schedule.slots && Array.isArray(schedule.slots)) {
         setSlots(
           schedule.slots.map((slot) => ({
@@ -96,13 +140,9 @@ export default function EditScheduleModal({ open, onOpenChange, schedule, doctor
             id: slot.id || Date.now(),
           }))
         );
-      } else {
-        setSlots([]);
       }
-
-      setError(null);
     }
-  }, [schedule, open]);
+  };
 
   // Calculate number of slots whenever these values change
   const numSlots = useMemo(() => {
@@ -331,19 +371,21 @@ export default function EditScheduleModal({ open, onOpenChange, schedule, doctor
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Slot Duration (minutes)
-            </label>
-            <Input
-              type="number"
-              value={form.slot_duration_minutes}
-              onChange={(e) => set("slot_duration_minutes", parseInt(e.target.value) || 5)}
-              disabled={submitting}
-              min="5"
-              step="5"
-            />
-          </div>
+          {isSlotNeeded && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Slot Duration (minutes)
+              </label>
+              <Input
+                type="number"
+                value={form.slot_duration_minutes}
+                onChange={(e) => set("slot_duration_minutes", parseInt(e.target.value) || 5)}
+                disabled={submitting}
+                min="5"
+                step="5"
+              />
+            </div>
+          )}
 
           {!isSlotNeeded && (
             <div className="space-y-3 border-t pt-4">
@@ -356,7 +398,7 @@ export default function EditScheduleModal({ open, onOpenChange, schedule, doctor
                   size="sm"
                   variant="outline"
                   onClick={addSlot}
-                  disabled={submitting}
+                  disabled={submitting || loadingSlots}
                   className="gap-1"
                 >
                   <Plus className="h-4 w-4" />
@@ -364,7 +406,12 @@ export default function EditScheduleModal({ open, onOpenChange, schedule, doctor
                 </Button>
               </div>
 
-              {slots.length === 0 ? (
+              {loadingSlots ? (
+                <div className="text-center py-6">
+                  <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2 text-emerald-600" />
+                  <p className="text-sm text-slate-500">Loading slots for this day...</p>
+                </div>
+              ) : slots.length === 0 ? (
                 <p className="text-xs text-slate-500 text-center py-4">
                   No slots added yet. Click "Add Slot" to create one.
                 </p>

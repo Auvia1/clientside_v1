@@ -291,6 +291,25 @@ const timeToMinutes = (timeStr) => {
   return h * 60 + m;
 };
 
+// Helper: Convert 24-hour time to 12-hour format
+const formatTime12Hour = (timeStr) => {
+  const [hours, minutes] = timeStr.split(":").map(Number);
+  const period = hours >= 12 ? "PM" : "AM";
+  const displayHours = hours % 12 || 12;
+  return `${displayHours}:${String(minutes).padStart(2, "0")} ${period}`;
+};
+
+// Helper: Format date for display
+const formatDate = (dateStr) => {
+  if (!dateStr) return "";
+  const date = new Date(dateStr + "T00:00:00");
+  return date.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+};
+
 // Helper: Calculate number of slots
 const calculateNumSlots = (startTime, endTime, slotDuration) => {
   if (!startTime || !endTime || !slotDuration || startTime >= endTime) return 0;
@@ -540,20 +559,22 @@ export default function AddScheduleModal({ open, onOpenChange, doctorId, onAdded
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Slot Duration (minutes)
-            </label>
-            <input
-              type="number"
-              min="5"
-              step="5"
-              value={slotDuration}
-              onChange={(e) => setSlotDuration(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              disabled={loading}
-            />
-          </div>
+          {isSlotNeeded && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Slot Duration (minutes)
+              </label>
+              <input
+                type="number"
+                min="5"
+                step="5"
+                value={slotDuration}
+                onChange={(e) => setSlotDuration(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                disabled={loading}
+              />
+            </div>
+          )}
 
           {!isSlotNeeded && (
             <div className="space-y-3 border-t pt-4">

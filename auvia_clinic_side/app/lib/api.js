@@ -338,6 +338,7 @@ export const slotsApi = {
     const params = new URLSearchParams();
     if (filters.clinic_id) params.set("clinic_id", filters.clinic_id);
     if (filters.doctor_id) params.set("doctor_id", filters.doctor_id);
+    if (filters.day_of_week !== undefined) params.set("day_of_week", filters.day_of_week);
     if (filters.status) params.set("status", filters.status);
     if (filters.start_date) params.set("start_date", filters.start_date);
     if (filters.end_date) params.set("end_date", filters.end_date);

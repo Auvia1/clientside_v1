@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useDoctorDetails } from "../hooks/useDoctorDetails";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
@@ -10,18 +10,20 @@ import EditScheduleModal from "./EditScheduleModal";
 import EditTimeOffModal from "./EditTimeOffModal";
 import AddScheduleModal from "./AddScheduleModal";
 import AddTimeOffModal from "./AddTimeOffModal";
-import { doctorsApi } from "../lib/api";
+import { doctorsApi, clinicsApi, slotsApi } from "../lib/api";
 
 const DAYS_OF_WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 function formatTime(timeStr) {
-  if (!timeStr) return { time: "--:--", period: "" };
+  if (!timeStr) return { time: "--:--", period: "", hour: 0, minute: 0 };
   const [h, m] = timeStr.split(":").map(Number);
   const period = h < 12 ? "AM" : "PM";
   const hour = h % 12 || 12;
   return {
     time: `${String(hour).padStart(2, "0")}:${String(m).padStart(2, "0")}`,
     period,
+    hour,
+    minute: m,
   };
 }
 
@@ -53,8 +55,34 @@ function formatDateRange(startTime, endTime) {
   return `${startStr} - ${endStr}`;
 }
 
+// Helper: Generate all slot times from start_time, end_time, and slot_duration
+function generateSlotTimes(startTime, endTime, slotDuration) {
+  if (!startTime || !endTime || !slotDuration) return [];
+
+  const [startH, startM] = startTime.split(":").map(Number);
+  const [endH, endM] = endTime.split(":").map(Number);
+
+  const startMinutes = startH * 60 + startM;
+  const endMinutes = endH * 60 + endM;
+  const duration = parseInt(slotDuration);
+
+  const slots = [];
+  for (let minutes = startMinutes; minutes < endMinutes; minutes += duration) {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    slots.push({
+      time: `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`,
+      period: h < 12 ? "AM" : "PM",
+      hour: h % 12 || 12,
+    });
+  }
+  return slots;
+}
+
 export default function DoctorDetailsCard({ doctorId }) {
   const { doctor, schedules, timeOffs, loading, error, refetch } = useDoctorDetails(doctorId);
+  const [isSlotNeeded, setIsSlotNeeded] = useState(true);
+  const [slotsByDay, setSlotsByDay] = useState({}); // Map of day -> array of slots
 
   // Modal state
   const [editingSchedule, setEditingSchedule] = useState(null);
@@ -66,6 +94,64 @@ export default function DoctorDetailsCard({ doctorId }) {
   const [deleting, setDeleting] = useState(null);
   const [deleteError, setDeleteError] = useState(null);
   const [showAllTimeOffs, setShowAllTimeOffs] = useState(false);
+
+  // Fetch clinic settings to check if slots are needed
+  useEffect(() => {
+    const fetchClinicSettings = async () => {
+      try {
+        const clinicId = localStorage.getItem("auvia_clinic_id");
+        if (!clinicId) return;
+
+        const response = await clinicsApi.getIsSlotNeeded(clinicId);
+        setIsSlotNeeded(response.is_slots_needed ?? true);
+      } catch (err) {
+        console.error("Failed to fetch clinic settings:", err);
+        setIsSlotNeeded(true);
+      }
+    };
+
+    fetchClinicSettings();
+  }, []);
+
+  // Fetch all slots for each day when is_slots_needed is false
+  useEffect(() => {
+    if (!isSlotNeeded && !loading && schedules.length > 0 && doctorId) {
+      fetchAllSlotsForDays();
+    }
+  }, [isSlotNeeded, doctorId, schedules.length]);
+
+  const fetchAllSlotsForDays = async () => {
+    try {
+      const clinicId = localStorage.getItem("auvia_clinic_id");
+      if (!clinicId) return;
+
+      const slotsMap = {};
+
+      // Fetch slots for each day that has a schedule
+      for (const schedule of schedules) {
+        try {
+          const response = await slotsApi.list({
+            clinic_id: clinicId,
+            doctor_id: doctorId,
+            day_of_week: schedule.day_of_week,
+          });
+
+          const dayName = DAYS_OF_WEEK[schedule.day_of_week];
+          const fetchedSlots = Array.isArray(response) ? response : response.data || [];
+          slotsMap[dayName] = fetchedSlots;
+        } catch (err) {
+          console.error(`Failed to fetch slots for day ${schedule.day_of_week}:`, err);
+          // Fall back to empty array
+          const dayName = DAYS_OF_WEEK[schedule.day_of_week];
+          slotsMap[dayName] = [];
+        }
+      }
+
+      setSlotsByDay(slotsMap);
+    } catch (err) {
+      console.error("Failed to fetch slots:", err);
+    }
+  };
 
   if (!doctorId || doctorId === "all") {
     return null;
@@ -237,14 +323,28 @@ export default function DoctorDetailsCard({ doctorId }) {
                       <span className="text-sm font-medium text-slate-700 block mb-1">{day}</span>
                       {schedule ? (
                         <div className="space-y-1">
-                          <div className="flex items-center gap-2 flex-wrap">
+                          {!isSlotNeeded && ((slotsByDay[day] && slotsByDay[day].length > 0) || (schedule.slots && schedule.slots.length > 0)) ? (
+                            // Display individual slot time ranges when is_slots_needed = false
                             <span className="text-xs text-slate-600">
-                              {startTime} {startPeriod} - {endTime} {endPeriod}
+                              {(slotsByDay[day] && slotsByDay[day].length > 0 ? slotsByDay[day] : schedule.slots || []).map((slot, idx) => {
+                                const slotStart = formatTime(slot.start_time);
+                                const slotEnd = formatTime(slot.end_time);
+                                return `${slotStart.hour}:${String(slotStart.minute).padStart(2, "0")} ${slotStart.period} - ${slotEnd.hour}:${String(slotEnd.minute).padStart(2, "0")} ${slotEnd.period}`;
+                              }).join(", ")}
                             </span>
-                            <span className="text-[10px] text-slate-400">
-                              ({schedule.slot_duration_minutes}m slots)
-                            </span>
-                          </div>
+                          ) : (
+                            // Display time range with slot duration when is_slots_needed = true
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs text-slate-600">
+                                {startTime} {startPeriod} - {endTime} {endPeriod}
+                              </span>
+                              {isSlotNeeded && (
+                                <span className="text-[10px] text-slate-400">
+                                  ({schedule.slot_duration_minutes}m slots)
+                                </span>
+                              )}
+                            </div>
+                          )}
                           {(effectiveFromDate || effectiveToDate) && (
                             <div className="text-[10px] text-slate-400">
                               Effective: {effectiveFromDate || "–"}
