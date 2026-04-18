@@ -225,6 +225,16 @@ export const patientsApi = {
   },
 
   get: (id) => request(`/patients/${id}?clinic_id=${getClinicId()}`),
+
+  getAppointments: (id, filters = {}) => {
+    const params = new URLSearchParams({ clinic_id: getClinicId() });
+    if (filters.status) params.set("status", filters.status);
+    if (filters.start_date) params.set("start_date", filters.start_date);
+    if (filters.end_date) params.set("end_date", filters.end_date);
+    if (filters.page) params.set("page", filters.page);
+    if (filters.limit) params.set("limit", filters.limit);
+    return request(`/patients/${id}/appointments?${params}`);
+  },
 };
 
 // ─── Activity ─────────────────────────────────────────────────────────────────

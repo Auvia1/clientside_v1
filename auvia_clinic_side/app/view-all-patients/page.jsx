@@ -17,6 +17,7 @@ import {
   FiChevronRight,
 } from "react-icons/fi";
 import { patientsApi } from "../lib/api";
+import PatientDetailsDialog from "../components/PatientDetailsDialog";
 
 // Helper: Get initials from name
 function initials(name = "") {
@@ -50,6 +51,8 @@ export default function ViewAllPatientsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isClient, setIsClient] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedPatient, setSelectedPatient] = useState(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const patientsPerPage = 20;
 
   // Ensure component only hydrates on client
@@ -244,7 +247,11 @@ export default function ViewAllPatientsPage() {
                         {displayedPatients.map((patient) => (
                           <div
                             key={patient.id}
-                            className="flex items-center gap-4 rounded-lg border border-slate-100 px-4 py-3 hover:bg-slate-50 transition-colors"
+                            className="flex items-center gap-4 rounded-lg border border-slate-100 px-4 py-3 hover:bg-slate-50 transition-colors cursor-pointer"
+                            onClick={() => {
+                              setSelectedPatient(patient);
+                              setIsDialogOpen(true);
+                            }}
                           >
                             <div className="grid h-10 w-10 place-items-center rounded-full bg-gradient-to-br from-blue-100 to-blue-50 text-sm font-semibold text-blue-700 shrink-0">
                               {initials(patient.name)}
@@ -303,6 +310,13 @@ export default function ViewAllPatientsPage() {
             </>
           )}
         </main>
+
+        {/* Patient Details Dialog */}
+        <PatientDetailsDialog
+          open={isDialogOpen}
+          onOpenChange={setIsDialogOpen}
+          patient={selectedPatient}
+        />
       </div>
     </div>
   );
