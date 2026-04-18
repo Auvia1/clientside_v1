@@ -8,6 +8,7 @@ import Link from "next/link";
 import Navbar from "../components/Navbar";
 import Sidebar from "../components/Sidebar";
 import NewAppointmentDialog from "../components/NewAppointmentDialog";
+import PatientDetailsDialog from "../components/PatientDetailsDialog";
 import LiveActivityPanel from "../components/LiveActivityPanel";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -20,7 +21,7 @@ import {
 } from "react-icons/fi";
 import { useClinicSchedule, usePatientSearch, useDoctorScheduleSlots } from "../hooks/useSchedule";
 import { useLiveActivity } from "../hooks/useLiveActivity";
-import { appointmentsApi } from "../lib/api";
+import { appointmentsApi, doctorsApi } from "../lib/api";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -463,6 +464,8 @@ function WeekView({ doctor, anchorDate }) {
 function PatientLookup() {
   const { query, setQuery, results, loading, error } = usePatientSearch();
   const [isClient, setIsClient] = useState(false);
+  const [selectedPatient, setSelectedPatient] = useState(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   useEffect(() => {
     setIsClient(true);
@@ -504,6 +507,10 @@ function PatientLookup() {
                 <div
                   key={patient.id}
                   className="flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2 hover:-translate-y-0.5 hover:shadow transition-transform cursor-pointer"
+                  onClick={() => {
+                    setSelectedPatient(patient);
+                    setIsDialogOpen(true);
+                  }}
                 >
                   <div className="grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600 shrink-0">
                     {initials(patient.name)}
@@ -524,6 +531,13 @@ function PatientLookup() {
           <Button variant="outline" className="w-full rounded-full">View All Patients</Button>
         </Link>
       </CardContent>
+
+      {/* Patient Details Dialog */}
+      <PatientDetailsDialog
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        patient={selectedPatient}
+      />
     </Card>
   );
 }
