@@ -212,6 +212,11 @@ export const doctorsApi = {
 
 // ─── Patients ─────────────────────────────────────────────────────────────────
 export const patientsApi = {
+  list: (page = 1, limit = 20) => {
+    const params = new URLSearchParams({ clinic_id: getClinicId(), page, limit });
+    return request(`/patients?${params}`);
+  },
+
   search: (query, limit = 10) => {
     const params = new URLSearchParams({ clinic_id: getClinicId() });
     if (query) params.set("search", query);

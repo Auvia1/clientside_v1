@@ -226,12 +226,13 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { LayoutGrid, CalendarDays, PhoneCall, Menu, X, LogOut, TrendingUp } from "lucide-react";
+import { LayoutGrid, CalendarDays, PhoneCall, Menu, X, LogOut, TrendingUp, Users } from "lucide-react";
 import { Badge } from "./ui/badge";
 
 const navItems = [
 	{ label: "Dashboard", href: "/dashboard", icon: LayoutGrid },
 	{ label: "Schedule",  href: "/schedule",  icon: CalendarDays },
+	{ label: "Patients",  href: "/view-all-patients", icon: Users },
 	{ label: "Earnings",  href: "/earnings",  icon: TrendingUp },
 ];
 

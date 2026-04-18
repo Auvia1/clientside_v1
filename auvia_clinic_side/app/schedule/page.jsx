@@ -4,6 +4,7 @@
 "use client";
 
 import { useMemo, useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import Navbar from "../components/Navbar";
 import Sidebar from "../components/Sidebar";
 import NewAppointmentDialog from "../components/NewAppointmentDialog";
@@ -461,10 +462,11 @@ function WeekView({ doctor, anchorDate }) {
 
 function PatientLookup() {
   const { query, setQuery, results, loading, error } = usePatientSearch();
-  const placeholders = [
-    { name: "Jayanth Rao",      meta: "Last visit: 2 days ago" },
-    { name: "Saranya Krishnan", meta: "New Patient"             },
-  ];
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   return (
     <Card className="border-slate-100 shadow-sm">
@@ -485,45 +487,42 @@ function PatientLookup() {
             <FiAlertCircle />{error}
           </p>
         )}
-        <div className="space-y-2 max-h-64 overflow-y-auto">
-          {results.length === 0 && query.trim() && !loading ? (
-            <p className="text-xs text-slate-400 text-center py-4">No patients found.</p>
-          ) : results.length === 0 && !query.trim() ? (
-            placeholders.map((p) => (
-              <div
-                key={p.name}
-                className="flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2 hover:-translate-y-0.5 hover:shadow transition-transform"
-              >
-                <div className="grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600">
-                  {initials(p.name)}
+        {!isClient ? (
+          <div className="space-y-2 max-h-64">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="h-12 bg-slate-200 animate-pulse rounded" />
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {results.length === 0 && query.trim() && !loading ? (
+              <p className="text-xs text-slate-400 text-center py-4">No patients found.</p>
+            ) : results.length === 0 && !query.trim() && !loading ? (
+              <p className="text-xs text-slate-400 text-center py-4">No patients available.</p>
+            ) : (
+              results.map((patient) => (
+                <div
+                  key={patient.id}
+                  className="flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2 hover:-translate-y-0.5 hover:shadow transition-transform cursor-pointer"
+                >
+                  <div className="grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600 shrink-0">
+                    {initials(patient.name)}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-700 truncate">{patient.name}</p>
+                    <p className="text-xs text-slate-400">{patient.phone} • {relativeDate(patient.last_visit)}</p>
+                  </div>
+                  <Badge variant="muted" className="ml-auto shrink-0 text-[9px]">
+                    {patient.total_appointments} visits
+                  </Badge>
                 </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-700">{p.name}</p>
-                  <p className="text-xs text-slate-400">{p.meta}</p>
-                </div>
-              </div>
-            ))
-          ) : (
-            results.map((patient) => (
-              <div
-                key={patient.id}
-                className="flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2 hover:-translate-y-0.5 hover:shadow transition-transform cursor-pointer"
-              >
-                <div className="grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600 shrink-0">
-                  {initials(patient.name)}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-slate-700 truncate">{patient.name}</p>
-                  <p className="text-xs text-slate-400">{patient.phone} • {relativeDate(patient.last_visit)}</p>
-                </div>
-                <Badge variant="muted" className="ml-auto shrink-0 text-[9px]">
-                  {patient.total_appointments} visits
-                </Badge>
-              </div>
-            ))
-          )}
-        </div>
-        <Button variant="outline" className="w-full rounded-full">View All Patients</Button>
+              ))
+            )}
+          </div>
+        )}
+        <Link href="/view-all-patients">
+          <Button variant="outline" className="w-full rounded-full">View All Patients</Button>
+        </Link>
       </CardContent>
     </Card>
   );

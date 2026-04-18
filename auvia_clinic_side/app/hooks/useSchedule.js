@@ -365,7 +365,17 @@ export function usePatientSearch() {
 
   useEffect(() => {
     if (!query.trim()) {
-      setResults([]);
+      // Fetch latest patients when there's no query
+      setLoading(true);
+      setError(null);
+      patientsApi
+        .search("", 6) // Fetch 6 latest patients
+        .then(setResults)
+        .catch((err) => {
+          setError(err.message);
+          setResults([]);
+        })
+        .finally(() => setLoading(false));
       return;
     }
 
