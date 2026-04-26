@@ -214,8 +214,6 @@ function useWeekSchedule(doctorId, anchorDate) {
 
 function AppointmentCell({ appt, onStatusChange, slotCardHeightClass = "appointment-slot" }) {
   const [updating, setUpdating]       = useState(false);
-  const [errorMsg, setErrorMsg]       = useState(null);
-  const [toastMsg, setToastMsg]       = useState(null);
   const [localStatus, setLocalStatus] = useState(appt.status);
 
   useEffect(() => { setLocalStatus(appt.status); }, [appt.status]);
@@ -223,56 +221,39 @@ function AppointmentCell({ appt, onStatusChange, slotCardHeightClass = "appointm
   async function handleChange(newStatus) {
     if (updating) return;
     setUpdating(true);
-    setErrorMsg(null);
     const previous = localStatus;
     setLocalStatus(newStatus);
     try {
       await onStatusChange(appt.id, newStatus);
-      setToastMsg(newStatus === "completed" ? "Marked complete ✓" : "Marked no-show");
-      setTimeout(() => setToastMsg(null), 2_000);
+      setTimeout(() => {}, 2_000);
     } catch (err) {
       setLocalStatus(previous);
-      setErrorMsg(err?.message || "Update failed");
     } finally {
       setUpdating(false);
     }
   }
 
-  const isActionable = localStatus === "confirmed" || localStatus === "pending";
+  const statusColorMap = {
+    confirmed:   { bg: "#f0f9ff", border: "#0ea5e9", text: "#075985" },
+    pending:     { bg: "#fffbeb", border: "#f59e0b", text: "#92400e" },
+    completed:   { bg: "#f0fdf4", border: "#059669", text: "#065f46" },
+    cancelled:   { bg: "#fef2f2", border: "#dc2626", text: "#7f1d1d" },
+    no_show:     { bg: "#fff7ed", border: "#f97316", text: "#7c2d12" },
+    rescheduled: { bg: "#faf5ff", border: "#a855f7", text: "#5b21b6" },
+  };
 
-  const borderColor = {
-    confirmed:   "border-l-sky-400",
-    pending:     "border-l-amber-400",
-    completed:   "border-l-emerald-600",
-    cancelled:   "border-l-red-400",
-    no_show:     "border-l-orange-400",
-    rescheduled: "border-l-violet-400",
-  }[localStatus] || "border-l-slate-200";
-
-  const bgColor = {
-    confirmed:   "bg-sky-50",
-    pending:     "bg-amber-50",
-    completed:   "bg-emerald-50",
-    cancelled:   "bg-red-50",
-    no_show:     "bg-orange-50",
-    rescheduled: "bg-violet-50",
-  }[localStatus] || "bg-white";
-
-  const textColor = {
-    confirmed:   "text-sky-900",
-    pending:     "text-amber-900",
-    completed:   "text-emerald-900",
-    cancelled:   "text-red-900",
-    no_show:     "text-orange-900",
-    rescheduled: "text-violet-900",
-  }[localStatus] || "text-slate-800";
+  const colors = statusColorMap[localStatus] || { bg: "#ffffff", border: "#cbd5e1", text: "#1e293b" };
 
   return (
     <div
-      className={`${slotCardHeightClass} overflow-hidden relative border-l-4 ${borderColor} ${bgColor} rounded-r-lg p-2 flex flex-col justify-between shadow-sm transition-all duration-200 hover:shadow-md cursor-pointer`}
+      className={`${slotCardHeightClass} overflow-hidden relative border-l-4 rounded-r-lg p-2 flex flex-col justify-between shadow-sm transition-all duration-200 hover:shadow-md cursor-pointer`}
+      style={{
+        backgroundColor: colors.bg,
+        borderLeftColor: colors.border
+      }}
     >
       <div className="min-w-0 flex-1">
-        <p className="text-[13px] font-bold truncate" style={{color: textColor}}>
+        <p className="text-[13px] font-bold truncate" style={{color: colors.text}}>
           {appt.patient_name || "Unknown"}
         </p>
         <p className="text-[10px] text-slate-600 truncate">
