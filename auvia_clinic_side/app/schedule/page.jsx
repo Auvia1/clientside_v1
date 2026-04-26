@@ -212,7 +212,7 @@ function useWeekSchedule(doctorId, anchorDate) {
 
 // ─── AppointmentCell ──────────────────────────────────────────────────────────
 
-function AppointmentCell({ appt, onStatusChange, slotCardHeightClass = "h-[120px]" }) {
+function AppointmentCell({ appt, onStatusChange, slotCardHeightClass = "appointment-slot" }) {
   const [updating, setUpdating]       = useState(false);
   const [errorMsg, setErrorMsg]       = useState(null);
   const [toastMsg, setToastMsg]       = useState(null);
@@ -243,89 +243,60 @@ function AppointmentCell({ appt, onStatusChange, slotCardHeightClass = "h-[120px
   const borderColor = {
     confirmed:   "border-l-sky-400",
     pending:     "border-l-amber-400",
-    completed:   "border-l-emerald-400",
+    completed:   "border-l-emerald-600",
     cancelled:   "border-l-red-400",
     no_show:     "border-l-orange-400",
     rescheduled: "border-l-violet-400",
   }[localStatus] || "border-l-slate-200";
 
+  const bgColor = {
+    confirmed:   "bg-sky-50",
+    pending:     "bg-amber-50",
+    completed:   "bg-emerald-50",
+    cancelled:   "bg-red-50",
+    no_show:     "bg-orange-50",
+    rescheduled: "bg-violet-50",
+  }[localStatus] || "bg-white";
+
+  const textColor = {
+    confirmed:   "text-sky-900",
+    pending:     "text-amber-900",
+    completed:   "text-emerald-900",
+    cancelled:   "text-red-900",
+    no_show:     "text-orange-900",
+    rescheduled: "text-violet-900",
+  }[localStatus] || "text-slate-800";
+
   return (
-    <Card
-      className={`${slotCardHeightClass} overflow-hidden relative border-l-[3px] ${borderColor} bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md`}
+    <div
+      className={`${slotCardHeightClass} overflow-hidden relative border-l-4 ${borderColor} ${bgColor} rounded-r-lg p-2 flex flex-col justify-between shadow-sm transition-all duration-200 hover:shadow-md cursor-pointer`}
     >
-      <CardContent className="p-3 pt-2.5 h-full flex flex-col overflow-hidden">
-
-        {toastMsg && (
-          <div className="absolute inset-x-2 top-1.5 z-10 flex items-center justify-center rounded-md bg-emerald-500 px-2 py-1 text-[10px] font-semibold text-white shadow">
-            {toastMsg}
-          </div>
-        )}
-
-        <div className="flex items-center justify-between mb-1.5 shrink-0">
-          <Badge variant={statusVariant(localStatus)} className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold">
-            {statusLabel(localStatus)}
-          </Badge>
-          {updating && <FiLoader className="h-3 w-3 animate-spin text-slate-300" />}
-        </div>
-
-        <p className="text-[13px] font-bold text-slate-800 leading-tight truncate shrink-0">
-          {appt.patient_name || "Unknown patient"}
+      <div className="min-w-0 flex-1">
+        <p className="text-[13px] font-bold truncate" style={{color: textColor}}>
+          {appt.patient_name || "Unknown"}
         </p>
-
-        <p className="text-[11px] text-slate-400 truncate shrink-0">
+        <p className="text-[10px] text-slate-600 truncate">
           {appt.reason || "—"}
         </p>
+      </div>
 
-        <div className="flex items-center gap-1 mt-auto shrink-0">
-          <FiCalendar className="h-2.5 w-2.5 shrink-0 text-slate-300" />
-          <span className="text-[10px] font-medium text-slate-400 tabular-nums truncate">
-            {formatTimeLabel(appt.appointment_start)}
-            {appt.appointment_end ? ` – ${formatTimeLabel(appt.appointment_end)}` : ""}
-          </span>
+      {updating && (
+        <div className="absolute inset-0 flex items-center justify-center bg-white/50 rounded-r-lg">
+          <FiLoader className="h-3 w-3 animate-spin text-slate-600" />
         </div>
-
-        {errorMsg && (
-          <p className="flex items-center gap-1 text-[10px] text-red-500 truncate shrink-0 mt-0.5">
-            <FiAlertCircle className="shrink-0" />
-            <span className="truncate">{errorMsg}</span>
-          </p>
-        )}
-
-        {isActionable && !updating && (
-          <div className="flex items-center gap-1.5 mt-1 shrink-0">
-            <button
-              onClick={() => handleChange("completed")}
-              disabled={updating}
-              className="flex-1 flex items-center justify-center gap-1 rounded-md py-0.5 text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100 active:scale-95 disabled:opacity-50 transition-all duration-150"
-            >
-              <FiCheck className="h-2.5 w-2.5" />Done
-            </button>
-            <button
-              onClick={() => handleChange("no_show")}
-              disabled={updating}
-              className="flex-1 flex items-center justify-center gap-1 rounded-md py-0.5 text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-100 hover:bg-amber-100 active:scale-95 disabled:opacity-50 transition-all duration-150"
-            >
-              <FiUserX className="h-2.5 w-2.5" />No-show
-            </button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      )}
+    </div>
   );
 }
 
 // ─── SlotCell ─────────────────────────────────────────────────────────────────
 
-function SlotCell({ appts = [], onStatusChange, slotCardHeightClass = "h-[120px]", style }) {
+function SlotCell({ appts = [], onStatusChange, slotCardHeightClass = "appointment-slot" }) {
   if (appts.length === 0) {
-    return (
-      <div className={slotCardHeightClass} style={style}>
-        <Card className="h-full bg-white/60" />
-      </div>
-    );
+    return <div className={slotCardHeightClass} />;
   }
   return (
-    <div className={`${slotCardHeightClass} relative`} style={style}>
+    <div className={`${slotCardHeightClass} relative`}>
       <AppointmentCell appt={appts[0]} onStatusChange={onStatusChange} slotCardHeightClass={slotCardHeightClass} />
       {appts.length > 1 && (
         <div className="absolute bottom-0 inset-x-0 z-10 flex items-center justify-center bg-white/90 backdrop-blur-sm py-0.5 border-t border-slate-100 rounded-b-lg">
@@ -345,7 +316,7 @@ function SlotCell({ appts = [], onStatusChange, slotCardHeightClass = "h-[120px]
 
 function WeekView({ doctor, anchorDate }) {
   const { weekData, loading } = useWeekSchedule(doctor.id, anchorDate);
-  const { slotDurationMinutes, timeSlots, slotCardHeightClass, loading: slotsLoading } = useDoctorScheduleSlots(doctor.id);
+  const { slotDurationMinutes, timeSlots, loading: slotsLoading } = useDoctorScheduleSlots(doctor.id);
   const weekDays = getWeekDays(anchorDate);
   const todayStr = new Date().toISOString().slice(0, 10);
 
@@ -364,9 +335,9 @@ function WeekView({ doctor, anchorDate }) {
       <div className="space-y-3">
         {Array.from({ length: 5 }).map((_, i) => (
           <div key={i} className="flex gap-2">
-            <div className={`w-[90px] ${slotCardHeightClass} animate-pulse rounded-xl bg-slate-100 shrink-0`} />
+            <div className="w-[80px] appointment-slot animate-pulse rounded-xl bg-slate-100 shrink-0" />
             {[0,1,2,3,4,5,6].map((j) => (
-              <div key={j} className={`flex-1 ${slotCardHeightClass} animate-pulse rounded-xl bg-slate-50`} />
+              <div key={j} className="flex-1 appointment-slot animate-pulse rounded-xl bg-slate-50" />
             ))}
           </div>
         ))}
@@ -375,61 +346,39 @@ function WeekView({ doctor, anchorDate }) {
   }
 
   return (
-    <div className="overflow-x-auto">
-      {/* Day headers */}
-      <div
-        className="grid gap-3 mb-3"
-        style={{ gridTemplateColumns: `110px repeat(7, minmax(155px, 1fr))` }}
-      >
-        <div />
+    <div className="overflow-x-auto hide-scrollbar">
+      {/* Day headers - sticky */}
+      <div className="schedule-grid sticky top-0 bg-white border-b border-slate-100 z-[5]">
+        <div className="h-16 flex items-center justify-center border-r border-slate-100">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Time</span>
+        </div>
         {weekDays.map((d, i) => {
           const ymd     = toYMD(d);
           const isToday = ymd === todayStr;
           const count   = (weekData[ymd] || []).length;
           return (
-            <Card key={ymd} className={isToday ? "border-emerald-300 bg-emerald-50" : ""}>
-              <CardContent className="p-3">
-                <div className="flex items-center gap-2">
-                  <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-semibold ${
-                    isToday ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"
-                  }`}>
-                    {initials(doctor.name)}
-                  </div>
-                  <div className="min-w-0">
-                    <p className={`text-[11px] font-semibold uppercase tracking-wide ${
-                      isToday ? "text-emerald-700" : "text-slate-500"
-                    }`}>{DAY_LABELS[i]}</p>
-                    <p className={`text-sm font-bold leading-none ${
-                      isToday ? "text-emerald-700" : "text-slate-800"
-                    }`}>{d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</p>
-                  </div>
-                </div>
-                <div className="mt-2">
-                  {count > 0 ? (
-                    <span className="inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-semibold text-emerald-700">
-                      {count} appt{count !== 1 ? "s" : ""}
-                    </span>
-                  ) : (
-                    <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-semibold text-slate-400">
-                      Free
-                    </span>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+            <div key={ymd} className={`flex flex-col items-center justify-center h-16 border-r border-slate-100 ${isToday ? "bg-slate-50/50" : ""}`}>
+              <span className="text-[10px] font-bold text-slate-400 uppercase">{DAY_LABELS[i]}</span>
+              <span className={`text-sm font-extrabold ${isToday ? "text-slate-900" : "text-slate-900"}`}>
+                {d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+              </span>
+              <span className="font-badge-label text-badge-label px-2 py-0.5 rounded-full mt-1"
+                style={{
+                  backgroundColor: count > 0 ? "#d1fae5" : "#f1f5f9",
+                  color: count > 0 ? "#047857" : "#64748b"
+                }}>
+                {count} appt{count !== 1 ? "s" : ""}
+              </span>
+            </div>
           );
         })}
       </div>
 
       {/* Time rows */}
-      <div className="space-y-2.5">
+      <div className="relative">
         {timeSlots.map((slot) => (
-          <div
-            key={slot}
-            className="grid gap-3 items-start"
-            style={{ gridTemplateColumns: `110px repeat(7, minmax(155px, 1fr))` }}
-          >
-            <div className={`flex flex-col items-end pr-3 pt-3 shrink-0 ${slotCardHeightClass}`}>
+          <div key={slot} className="schedule-grid border-b border-slate-50 appointment-slot">
+            <div className="flex items-center justify-center border-r border-slate-100">
               <span className="text-[11px] font-semibold text-slate-500 tabular-nums leading-none">
                 {slot}
               </span>
@@ -442,7 +391,7 @@ function WeekView({ doctor, anchorDate }) {
                   key={ymd}
                   appts={appts}
                   onStatusChange={(id, status) => appointmentsApi.updateStatus(id, status)}
-                  slotCardHeightClass={slotCardHeightClass}
+                  slotCardHeightClass="appointment-slot"
                 />
               );
             })}
