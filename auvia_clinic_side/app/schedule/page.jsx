@@ -43,10 +43,11 @@ function getISTHour(tsStr) {
   );
 }
 
-// Helper: Calculate proportional card height in pixels based on slot duration
-function calculateCardHeightPixels(slotDurationMinutes) {
-  if (!slotDurationMinutes) return 120;
-  return (slotDurationMinutes / 60) * 120;
+// Helper: Extract minutes from time label (e.g., "09:30 AM" -> 30)
+function extractMinutesFromLabel(label) {
+  const [timePart] = label.split(" ");
+  const [, m] = timePart.split(":").map(Number);
+  return m || 0;
 }
 
 function slotLabelToHour(label) {
@@ -180,13 +181,6 @@ function buildWeekLabel(anchorDate) {
 }
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-// Helper: Extract minutes from time label (e.g., "09:30 AM" -> 30)
-function extractMinutesFromLabel(label) {
-  const [timePart] = label.split(" ");
-  const [, m] = timePart.split(":").map(Number);
-  return m || 0;
-}
 
 // ─── useWeekSchedule ─────────────────────────────────────────────────────────
 
@@ -544,57 +538,26 @@ function PatientLookup() {
 
 // ─── SchedulePage ─────────────────────────────────────────────────────────────
 
-// For AllDoctorsView, use static 1-hour slots
-function generateAllDoctorsTimeSlots() {
-  return [
-    "08:00 AM", "09:00 AM", "10:00 AM", "11:00 AM",
-    "12:00 PM", "01:00 PM", "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM",
-  ];
-}
-
 export default function SchedulePage() {
   const [activeMonitoring, setActiveMonitoring] = useState(true);
-  const [doctorFilter, setDoctorFilter]         = useState("all");
+  const [doctorFilter, setDoctorFilter]         = useState(null);
   const [selectedDate, setSelectedDate]         = useState(
     () => new Date().toISOString().slice(0, 10)
   );
-  const [doctorSlotDurations, setDoctorSlotDurations] = useState({});
 
   const { doctors, appointmentMap, loading, error, refresh, updateStatus } =
     useClinicSchedule(selectedDate);
 
   const { activities, wsStatus } = useLiveActivity();
 
-  // Fetch slot durations for all doctors (for AllDoctorsView card height)
+  // Initialize doctorFilter to the first doctor when doctors load
   useEffect(() => {
-    const fetchSlotDurations = async () => {
-      const durations = {};
-      for (const doctor of doctors) {
-        try {
-          const schedules = await doctorsApi.getSchedule(doctor.id);
-          if (schedules && schedules.length > 0) {
-            durations[doctor.id] = schedules[0].slot_duration_minutes || 60;
-          } else {
-            durations[doctor.id] = 60;
-          }
-        } catch (_) {
-          durations[doctor.id] = 60; // Fallback to 60 min
-        }
-      }
-      setDoctorSlotDurations(durations);
-    };
-    if (doctors.length > 0) fetchSlotDurations();
-  }, [doctors]);
+    if (doctors.length > 0 && !doctorFilter) {
+      setDoctorFilter(doctors[0].id);
+    }
+  }, [doctors, doctorFilter]);
 
   const selectedDoctor = doctors.find((d) => d.id === doctorFilter) ?? null;
-
-  // All-doctors subtitle: "Monday, March 30, 2026"
-  const formattedDate = useMemo(
-    () => new Date(`${selectedDate}T00:00:00`).toLocaleDateString("en-US", {
-      weekday: "long", month: "long", day: "numeric", year: "numeric",
-    }),
-    [selectedDate]
-  );
 
   // Single-doctor subtitle: "30 Mar – 5 Apr 2026"
   const weekLabel = useMemo(
@@ -608,27 +571,12 @@ export default function SchedulePage() {
     setSelectedDate(d.toISOString().slice(0, 10));
   };
 
+  const visibleDoctors = doctors;
+
   const handleShiftWeek = (offset) => {
     if (offset === "today") { setSelectedDate(new Date().toISOString().slice(0, 10)); return; }
     shiftDate(offset);
   };
-
-  const visibleDoctors = doctors;
-
-  // For AllDoctorsView, use 15-min slot granularity to show all possible slots
-  const allDoctorsTimeSlots = useMemo(() => generateAllDoctorsTimeSlots(), []);
-
-  const doctorSlotMaps = useMemo(() => {
-    const maps = {};
-    for (const doctor of visibleDoctors) {
-      const raw   = appointmentMap[doctor.id] || {};
-      const appts = Array.isArray(raw) ? raw : Object.values(raw);
-      // For AllDoctorsView, use 60-min slots (static 1-hour view)
-      maps[doctor.id] = buildSlotMap(appts, allDoctorsTimeSlots, 60);
-    }
-    return maps;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleDoctors, appointmentMap, allDoctorsTimeSlots]);
 
   return (
     <div className="min-h-screen bg-[#f5f8fb] text-slate-900">
@@ -646,49 +594,11 @@ export default function SchedulePage() {
                 Single doctor → "Dr. Smith · 30 Mar – 5 Apr 2026 · Week View"
               */}
               <p className="text-sm text-slate-500">
-                {selectedDoctor
-                  ? `${selectedDoctor.name} · ${weekLabel} · Week View`
-                  : formattedDate}
+                {selectedDoctor && `${selectedDoctor.name} · ${weekLabel} · Week View`}
               </p>
             </div>
 
             <div className="flex items-center gap-3 flex-wrap">
-
-              {/* All-doctors: date picker + prev/today/next day buttons */}
-              {!selectedDoctor && (
-                <>
-                  <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1">
-                    <FiCalendar className="text-slate-400 shrink-0" />
-                    <Input
-                      type="date"
-                      value={selectedDate}
-                      onChange={(e) => setSelectedDate(e.target.value)}
-                      className="h-8 border-none bg-transparent p-0 text-xs w-32"
-                    />
-                    <Button
-                      variant="ghost" size="sm" className="h-6 w-6 rounded-full p-0"
-                      onClick={() => setSelectedDate(new Date().toISOString().slice(0, 10))}
-                    >
-                      <FiX />
-                    </Button>
-                  </div>
-                  <Button variant="outline" className="rounded-full px-3" onClick={() => shiftDate(-1)}>
-                    <FiChevronLeft />
-                  </Button>
-                  <Button
-                    variant="outline" className="rounded-full px-4 text-xs"
-                    onClick={() => setSelectedDate(new Date().toISOString().slice(0, 10))}
-                  >
-                    Today
-                  </Button>
-                  <Button
-                    variant="outline" className="rounded-full px-3"
-                    onClick={() => handleShiftWeek(7)}
-                  >
-                    <FiChevronRight />
-                  </Button>
-                </>
-              )}
 
               {/*
                 Single-doctor: prev-week / this-week / next-week buttons.
@@ -763,72 +673,22 @@ export default function SchedulePage() {
 
                 {/* Doctor filter pills */}
                 <div className="flex flex-wrap items-center gap-2 mb-4">
-                  <Button
-                    variant={doctorFilter === "all" ? "default" : "outline"}
-                    className="rounded-full px-4 text-xs"
-                    onClick={() => setDoctorFilter("all")}
-                  >
-                    All Doctors
-                  </Button>
                   {doctors.map((d) => (
                     <Button
                       key={d.id}
                       variant={doctorFilter === d.id ? "default" : "outline"}
                       className="rounded-full px-4 text-xs"
-                      onClick={() => setDoctorFilter(doctorFilter === d.id ? "all" : d.id)}
+                      onClick={() => setDoctorFilter(d.id)}
                     >
                       Dr. {d.name.split(" ").pop()}
                     </Button>
                   ))}
                 </div>
-
-                {/* All-doctors column headers (doctor name cards) */}
-                {doctorFilter === "all" && (
-                  loading ? (
-                    <div className="flex gap-3">
-                      <div className="w-[90px] shrink-0" />
-                      {[1,2,3].map((i) => (
-                        <div key={i} className="flex-1 h-16 animate-pulse rounded-xl bg-slate-100" />
-                      ))}
-                    </div>
-                  ) : visibleDoctors.length > 0 ? (
-                    <div
-                      className="grid gap-3 text-xs text-slate-500"
-                      style={{ gridTemplateColumns: `110px repeat(${visibleDoctors.length}, minmax(155px, 1fr))` }}
-                    >
-                      <span />
-                      {visibleDoctors.map((doctor) => (
-                        <Card key={doctor.id}>
-                          <CardContent className="p-3">
-                            <div className="flex items-center gap-2">
-                              <div className="grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600 shrink-0">
-                                {initials(doctor.name)}
-                              </div>
-                              <div className="min-w-0">
-                                <p className="text-sm font-semibold text-slate-800 truncate">{doctor.name}</p>
-                                <p className="text-[10px] text-slate-400">{doctor.speciality}</p>
-                              </div>
-                            </div>
-                            <p className="mt-1.5 text-[10px] text-slate-400">
-                              {doctor.consultation_duration_minutes}min slots
-                            </p>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  ) : null
-                )}
               </CardHeader>
 
               <CardContent>
                 {/* Single-doctor week grid — navigation is now in the page header */}
-                {selectedDoctor ? (
-                  <WeekView
-                    doctor={selectedDoctor}
-                    anchorDate={selectedDate}
-                  />
-
-                ) : loading ? (
+                {loading ? (
                   <div className="space-y-3 mt-2">
                     {Array.from({ length: 6 }).map((_, i) => (
                       <div key={i} className="flex gap-3">
@@ -847,33 +707,12 @@ export default function SchedulePage() {
                   </div>
 
                 ) : (
-                  <div className="mt-2 space-y-3">
-                    {allDoctorsTimeSlots.map((slot) => (
-                      <div
-                        key={slot}
-                        className="grid gap-3 items-start"
-                        style={{ gridTemplateColumns: `110px repeat(${visibleDoctors.length}, minmax(155px, 1fr))` }}
-                      >
-                        <div className="flex flex-col items-end pr-3 pt-3 shrink-0 h-[120px]">
-                          <span className="text-[11px] font-semibold text-slate-500 tabular-nums">
-                            {slot}
-                          </span>
-                        </div>
-                        {visibleDoctors.map((doctor) => {
-                          const heightPx = calculateCardHeightPixels(doctorSlotDurations[doctor.id]);
-                          return (
-                            <SlotCell
-                              key={`${slot}-${doctor.id}`}
-                              appts={doctorSlotMaps[doctor.id]?.[slot] ?? []}
-                              onStatusChange={updateStatus}
-                              slotCardHeightClass="h-[120px]"
-                              style={{ height: `${heightPx}px` }}
-                            />
-                          );
-                        })}
-                      </div>
-                    ))}
-                  </div>
+                  selectedDoctor && (
+                    <WeekView
+                      doctor={selectedDoctor}
+                      anchorDate={selectedDate}
+                    />
+                  )
                 )}
               </CardContent>
             </Card>

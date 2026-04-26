@@ -45,23 +45,23 @@ export default function PatientDetailsDialog({ open, onOpenChange, patient }) {
 
   if (!patient) return null;
 
-  // Get status badge color
+  // Get status badge color matching website theme
   const getStatusColor = (status) => {
     switch (status) {
       case "completed":
-        return "bg-green-100 text-green-800 border-green-300";
-      case "pending":
-        return "bg-yellow-100 text-yellow-800 border-yellow-300";
+        return "bg-emerald-100 text-emerald-700 border-emerald-200";
       case "confirmed":
-        return "bg-blue-100 text-blue-800 border-blue-300";
+        return "bg-emerald-100 text-emerald-700 border-emerald-200";
+      case "pending":
+        return "bg-amber-100 text-amber-700 border-amber-200";
       case "cancelled":
-        return "bg-red-100 text-red-800 border-red-300";
+        return "bg-red-100 text-red-700 border-red-200";
       case "no_show":
-        return "bg-gray-100 text-gray-800 border-gray-300";
+        return "bg-slate-100 text-slate-700 border-slate-200";
       case "rescheduled":
-        return "bg-purple-100 text-purple-800 border-purple-300";
+        return "bg-amber-100 text-amber-700 border-amber-200";
       default:
-        return "bg-slate-100 text-slate-800 border-slate-300";
+        return "bg-slate-100 text-slate-700 border-slate-200";
     }
   };
 
@@ -81,19 +81,17 @@ export default function PatientDetailsDialog({ open, onOpenChange, patient }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader className="flex items-start justify-between">
-          <div>
-            <DialogTitle>Patient Details</DialogTitle>
-          </div>
-          <DialogClose className="text-slate-500 hover:text-slate-700" />
+        <DialogHeader className="flex items-start justify-between pb-3 border-b border-slate-100">
+          <DialogTitle className="text-sm font-semibold text-slate-900">Patient Details</DialogTitle>
+          <DialogClose className="text-slate-400 hover:text-slate-600 transition-colors" />
         </DialogHeader>
 
         {/* Patient Info Card */}
-        <Card className="bg-gradient-to-r from-blue-50 to-cyan-50 border-blue-200">
-          <CardContent className="pt-6">
+        <Card className="border-slate-100 shadow-sm">
+          <CardContent className="pt-6 bg-emerald-50/30">
             <div className="space-y-3">
               <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-semibold">
+                <div className="h-12 w-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-sm font-semibold text-emerald-600">
                   {patient.name
                     .split(" ")
                     .slice(0, 2)
@@ -101,34 +99,34 @@ export default function PatientDetailsDialog({ open, onOpenChange, patient }) {
                     .join("")}
                 </div>
                 <div>
-                  <p className="font-semibold text-slate-900 text-lg">{patient.name}</p>
-                  <p className="text-sm text-slate-600">Patient ID: {patient.id.slice(0, 8)}</p>
+                  <p className="font-semibold text-slate-900 text-sm">{patient.name}</p>
+                  <p className="text-xs text-slate-500">ID: {patient.id.slice(0, 8)}</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4 mt-4">
                 <div className="flex items-start gap-2">
-                  <Phone className="h-4 w-4 text-blue-600 mt-1 flex-shrink-0" />
+                  <Phone className="h-4 w-4 text-emerald-600 mt-1 flex-shrink-0" />
                   <div>
-                    <p className="text-xs font-medium text-slate-500 uppercase">Phone</p>
-                    <p className="text-sm text-slate-900">{patient.phone}</p>
+                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Phone</p>
+                    <p className="text-sm text-slate-900 font-medium">{patient.phone}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-2">
-                  <Calendar className="h-4 w-4 text-blue-600 mt-1 flex-shrink-0" />
+                  <Calendar className="h-4 w-4 text-emerald-600 mt-1 flex-shrink-0" />
                   <div>
-                    <p className="text-xs font-medium text-slate-500 uppercase">Total Appointments</p>
-                    <p className="text-sm text-slate-900">{patient.total_appointments}</p>
+                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Appointments</p>
+                    <p className="text-sm text-slate-900 font-medium">{patient.total_appointments}</p>
                   </div>
                 </div>
               </div>
 
               {patient.last_visit && (
-                <div className="flex items-start gap-2">
-                  <User className="h-4 w-4 text-blue-600 mt-1 flex-shrink-0" />
+                <div className="flex items-start gap-2 pt-2 border-t border-slate-100">
+                  <User className="h-4 w-4 text-emerald-600 mt-1 flex-shrink-0" />
                   <div>
-                    <p className="text-xs font-medium text-slate-500 uppercase">Last Visit</p>
-                    <p className="text-sm text-slate-900">
+                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Last Visit</p>
+                    <p className="text-sm text-slate-900 font-medium">
                       {new Date(patient.last_visit).toLocaleDateString("en-IN", {
                         year: "numeric",
                         month: "short",
@@ -145,9 +143,9 @@ export default function PatientDetailsDialog({ open, onOpenChange, patient }) {
         {/* Appointments Section */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-slate-900">
+            <h3 className="text-sm font-semibold text-slate-900">
               Appointment History
-              <span className="ml-2 text-sm font-normal text-slate-500">
+              <span className="ml-2 text-xs font-normal text-slate-500">
                 ({appointments.length})
               </span>
             </h3>
@@ -155,9 +153,9 @@ export default function PatientDetailsDialog({ open, onOpenChange, patient }) {
 
           {error && (
             <div className="flex items-start gap-3 rounded-lg bg-red-50 border border-red-200 px-4 py-3">
-              <AlertCircle className="h-5 w-5 shrink-0 text-red-600 mt-0.5" />
+              <AlertCircle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
               <div className="flex-1">
-                <p className="text-sm font-medium text-red-800">{error}</p>
+                <p className="text-xs font-medium text-red-800">{error}</p>
                 <Button
                   size="sm"
                   variant="outline"
@@ -192,67 +190,68 @@ export default function PatientDetailsDialog({ open, onOpenChange, patient }) {
 
           {loading ? (
             <div className="flex flex-col items-center justify-center py-12 gap-3">
-              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-              <p className="text-sm text-slate-500">Loading appointments...</p>
+              <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
+              <p className="text-xs text-slate-500">Loading appointments...</p>
             </div>
           ) : appointments.length === 0 ? (
             <Card className="bg-slate-50 border-slate-200">
               <CardContent className="text-center py-8">
-                <Calendar className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-                <p className="text-sm text-slate-600">No appointments found</p>
+                <Calendar className="h-6 w-6 text-slate-300 mx-auto mb-2" />
+                <p className="text-xs text-slate-600">No appointments found</p>
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {appointments.map((appointment) => (
-                <Card key={appointment.id} className="border-slate-200 hover:shadow-md transition-shadow">
-                  <CardContent className="pt-6">
+                <Card key={appointment.id} className="border-slate-100 hover:shadow-md transition-shadow">
+                  <CardContent className="pt-4 pb-4">
                     <div className="space-y-3">
                       {/* Top row: Date/Time and Status */}
                       <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-start gap-3 flex-1">
-                          <Calendar className="h-4 w-4 text-slate-400 mt-1 flex-shrink-0" />
+                        <div className="flex items-start gap-2 flex-1">
+                          <Calendar className="h-4 w-4 text-slate-400 mt-0.5 flex-shrink-0" />
                           <div>
-                            <p className="text-sm font-medium text-slate-900">
+                            <p className="text-xs font-semibold text-slate-900">
                               {formatDateTime(appointment.appointment_start)}
                             </p>
-                            <p className="text-xs text-slate-500">
-                              {appointment.appointment_end &&
-                                `Duration: ${new Date(appointment.appointment_end).toLocaleTimeString("en-IN", {
+                            {appointment.appointment_end && (
+                              <p className="text-[10px] text-slate-500 mt-0.5">
+                                Duration: {new Date(appointment.appointment_end).toLocaleTimeString("en-IN", {
                                   hour: "2-digit",
                                   minute: "2-digit",
                                   hour12: true,
-                                })}`}
-                            </p>
+                                })}
+                              </p>
+                            )}
                           </div>
                         </div>
-                        <Badge className={`${getStatusColor(appointment.status)} border`}>
+                        <Badge className={`${getStatusColor(appointment.status)} border text-[9px]`}>
                           {appointment.status.charAt(0).toUpperCase() +
                             appointment.status.slice(1).replace("_", " ")}
                         </Badge>
                       </div>
 
                       {/* Doctor and Clinic Info */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 ml-7">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 ml-6">
                         <div className="flex items-start gap-2">
-                          <Stethoscope className="h-4 w-4 text-slate-400 mt-0.5 flex-shrink-0" />
+                          <Stethoscope className="h-4 w-4 text-slate-400 mt-0 flex-shrink-0" />
                           <div className="min-w-0">
-                            <p className="text-xs font-medium text-slate-500 uppercase">Doctor</p>
-                            <p className="text-sm text-slate-900 font-medium break-words">
+                            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Doctor</p>
+                            <p className="text-xs text-slate-900 font-medium break-words">
                               {appointment.doctor_name}
                             </p>
                             {appointment.doctor_speciality && (
-                              <p className="text-xs text-slate-600">{appointment.doctor_speciality}</p>
+                              <p className="text-[10px] text-slate-600">{appointment.doctor_speciality}</p>
                             )}
                           </div>
                         </div>
 
                         {appointment.clinic_name && (
                           <div className="flex items-start gap-2">
-                            <MapPin className="h-4 w-4 text-slate-400 mt-0.5 flex-shrink-0" />
+                            <MapPin className="h-4 w-4 text-slate-400 mt-0 flex-shrink-0" />
                             <div className="min-w-0">
-                              <p className="text-xs font-medium text-slate-500 uppercase">Clinic</p>
-                              <p className="text-sm text-slate-900 font-medium break-words">
+                              <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Clinic</p>
+                              <p className="text-xs text-slate-900 font-medium break-words">
                                 {appointment.clinic_name}
                               </p>
                             </div>
@@ -262,9 +261,9 @@ export default function PatientDetailsDialog({ open, onOpenChange, patient }) {
 
                       {/* Reason */}
                       {appointment.reason && (
-                        <div className="ml-7">
-                          <p className="text-xs font-medium text-slate-500 uppercase mb-1">Reason</p>
-                          <p className="text-sm text-slate-700 bg-slate-50 rounded px-2 py-1.5">
+                        <div className="ml-6">
+                          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Reason</p>
+                          <p className="text-xs text-slate-700 bg-slate-50 rounded-lg px-2.5 py-1.5 border border-slate-200">
                             {appointment.reason}
                           </p>
                         </div>
@@ -272,10 +271,10 @@ export default function PatientDetailsDialog({ open, onOpenChange, patient }) {
 
                       {/* Payment Info */}
                       {appointment.payment_amount && (
-                        <div className="ml-7 pt-2 border-t border-slate-200 flex items-center justify-between">
+                        <div className="ml-6 pt-2 border-t border-slate-100 flex items-center justify-between">
                           <div>
-                            <p className="text-xs font-medium text-slate-500 uppercase">Payment</p>
-                            <p className="text-sm text-slate-900 font-semibold">
+                            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Payment</p>
+                            <p className="text-xs text-slate-900 font-semibold">
                               ₹{parseFloat(appointment.payment_amount).toLocaleString("en-IN", {
                                 minimumFractionDigits: 0,
                                 maximumFractionDigits: 2,
@@ -284,9 +283,11 @@ export default function PatientDetailsDialog({ open, onOpenChange, patient }) {
                           </div>
                           {appointment.payment_status && (
                             <Badge
-                              variant={
-                                appointment.payment_status === "paid" ? "default" : "secondary"
-                              }
+                              className={`text-[9px] ${
+                                appointment.payment_status === "paid"
+                                  ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                                  : "bg-slate-100 text-slate-700 border border-slate-200"
+                              }`}
                             >
                               {appointment.payment_status.charAt(0).toUpperCase() +
                                 appointment.payment_status.slice(1)}
@@ -303,8 +304,8 @@ export default function PatientDetailsDialog({ open, onOpenChange, patient }) {
         </div>
 
         {/* Close Button */}
-        <div className="flex gap-3 pt-4 border-t border-slate-200">
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full">
+        <div className="flex gap-3 pt-3 border-t border-slate-100">
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full h-9">
             Close
           </Button>
         </div>
