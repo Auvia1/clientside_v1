@@ -1481,26 +1481,26 @@ function DayView({ doctor, anchorDate, onDateChange }) {
   const { weekData, loading } = useWeekSchedule(doctor.id, anchorDate);
   const ymd = toYMD(new Date(`${anchorDate}T00:00:00`));
   const appts = weekData[ymd] || [];
-  const { timeSlots, slotDurationMinutes } = useDoctorScheduleSlots(doctor.id);
+  const { timeSlots, slotDurationMinutes, loading: slotsLoading } = useDoctorScheduleSlots(doctor.id);
 
   const currentDate = new Date(`${anchorDate}T00:00:00`);
   const isToday = anchorDate === new Date().toISOString().slice(0, 10);
 
-  const handlePrevDay = () => {
+  const handlePrevDay = useCallback(() => {
     const d = new Date(`${anchorDate}T00:00:00`);
     d.setDate(d.getDate() - 1);
     onDateChange(d.toISOString().slice(0, 10));
-  };
+  }, [anchorDate, onDateChange]);
 
-  const handleNextDay = () => {
+  const handleNextDay = useCallback(() => {
     const d = new Date(`${anchorDate}T00:00:00`);
     d.setDate(d.getDate() + 1);
     onDateChange(d.toISOString().slice(0, 10));
-  };
+  }, [anchorDate, onDateChange]);
 
-  const handleToday = () => {
+  const handleToday = useCallback(() => {
     onDateChange(new Date().toISOString().slice(0, 10));
-  };
+  }, [onDateChange]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -1509,13 +1509,21 @@ function DayView({ doctor, anchorDate, onDateChange }) {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [anchorDate, onDateChange]);
+  }, [handlePrevDay, handleNextDay]);
 
-  if (loading) {
+  const slotMap = useMemo(() => {
+    return buildSlotMap(appts, timeSlots, slotDurationMinutes);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appts, timeSlots, slotDurationMinutes]);
+
+  if (loading || slotsLoading) {
     return (
-      <div className="space-y-3 p-2">
+      <div className="space-y-3 px-1 pt-2">
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="h-20 bg-slate-100 animate-pulse rounded-xl" />
+          <div key={i} className="flex gap-2">
+            <div className="w-[80px] appointment-slot animate-pulse rounded-xl bg-slate-100 shrink-0" />
+            <div className="flex-1 appointment-slot animate-pulse rounded-xl bg-slate-50" />
+          </div>
         ))}
       </div>
     );
@@ -1523,6 +1531,7 @@ function DayView({ doctor, anchorDate, onDateChange }) {
 
   return (
     <div className="space-y-3">
+      {/* Date navigation header */}
       <div className="flex items-center justify-between px-4 py-3 bg-slate-50 rounded-xl border border-slate-100">
         <div className="flex items-center gap-2">
           <button
@@ -1536,7 +1545,7 @@ function DayView({ doctor, anchorDate, onDateChange }) {
             <h3 className="text-sm font-semibold text-slate-700">
               {currentDate.toLocaleDateString("en-IN", {
                 weekday: "short", year: "numeric", month: "short", day: "numeric"
-              })}
+              })} · <span className="text-slate-500 font-normal">{appts.length} appt{appts.length !== 1 ? "s" : ""}</span>
             </h3>
             {isToday && <span className="text-[10px] text-emerald-600 font-semibold">Today</span>}
           </div>
@@ -1554,58 +1563,52 @@ function DayView({ doctor, anchorDate, onDateChange }) {
               Today
             </Button>
           )}
-          <span className="text-xs font-medium text-slate-500">
-            {appts.length} appt{appts.length !== 1 ? "s" : ""}
-          </span>
         </div>
       </div>
 
-      {appts.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-          <FiCalendar className="h-8 w-8 mb-2 opacity-40" />
-          <p className="text-sm">No appointments scheduled</p>
-        </div>
-      ) : (
-        appts
-          .sort((a, b) => a.appointment_start.localeCompare(b.appointment_start))
-          .map((appt) => (
+      {/* Day grid view */}
+      <div className="overflow-x-auto hide-scrollbar">
+
+        {/* ── Time rows with single day column ── */}
+        <div className="relative" style={{ paddingTop: "2px", minWidth: "max-content" }}>
+          {timeSlots.map((slot, idx) => (
             <div
-              key={appt.id}
-              className="p-4 rounded-xl border border-slate-100 hover:shadow-md transition-shadow bg-white"
+              key={slot}
+              className="appointment-slot"
               style={{
-                borderLeft: "4px solid",
-                borderLeftColor: {
-                  confirmed: "#0ea5e9",
-                  pending: "#f59e0b",
-                  completed: "#059669",
-                  cancelled: "#dc2626",
-                  no_show: "#f97316",
-                  rescheduled: "#a855f7"
-                }[appt.status] || "#cbd5e1"
+                display: "grid",
+                gridTemplateColumns: "80px 1fr",
+                borderBottom: "1px solid #f4f6f8",
+                backgroundColor: idx % 2 === 0 ? "#ffffff" : "#fafbfc",
               }}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1">
-                  <p className="font-semibold text-slate-700">{appt.patient_name}</p>
-                  <p className="text-sm text-slate-600 mt-1">{appt.reason}</p>
-                  <p className="text-xs text-slate-500 mt-2">
-                    {formatTimeLabel(appt.appointment_start)} – {formatTimeLabel(appt.appointment_end)}
-                  </p>
-                </div>
-                <Badge
-                  variant={
-                    appt.status === "completed" ? "default"
-                    : appt.status === "pending" ? "warning"
-                    : "outline"
-                  }
-                  className="shrink-0 text-[11px]"
-                >
-                  {appt.status}
-                </Badge>
+              {/* Time label cell */}
+              <div
+                className="flex items-center justify-center border-r border-slate-100"
+                style={{ paddingLeft: "4px", paddingRight: "4px" }}
+              >
+                <span className="text-[10px] font-semibold text-slate-400 tabular-nums leading-none tracking-tight">
+                  {slot}
+                </span>
+              </div>
+
+              {/* Day slot cell */}
+              <div
+                className="relative"
+                style={{
+                  backgroundColor: isToday ? "rgba(16,185,129,0.03)" : "transparent",
+                }}
+              >
+                <SlotCell
+                  appts={slotMap[slot] ?? []}
+                  onStatusChange={(id, status) => appointmentsApi.updateStatus(id, status)}
+                  slotCardHeightClass="appointment-slot"
+                />
               </div>
             </div>
-          ))
-      )}
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
