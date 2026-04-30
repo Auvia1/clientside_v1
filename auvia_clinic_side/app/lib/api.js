@@ -86,38 +86,51 @@ function getToken() {
 }
 
 // ─── Core request helper ──────────────────────────────────────────────────────
-async function request(path, options = {}) {
+async function request(path, options = {}, retries = 3) {
   const token = getToken();
 
-  const res = await fetch(`${BASE_URL}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    ...options,
-  });
-
-  let data;
   try {
-    data = await res.json();
-  } catch {
-    throw new Error(`Server error: ${res.status} ${res.statusText}`);
-  }
+    const res = await fetch(`${BASE_URL}${path}`, {
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      ...options,
+    });
 
-  // Token expired → clear storage and redirect to login
-  if (res.status === 401) {
-    localStorage.removeItem("auvia_token");
-    localStorage.removeItem("auvia_clinic_id");
-    localStorage.removeItem("auvia_user");
-    window.location.href = "/";
-    throw new Error(data.error || "Session expired. Please log in again.");
-  }
+    // Handle 503 Service Unavailable with retry
+    if (res.status === 503 && retries > 0) {
+      const delay = Math.pow(2, 4 - retries) * 1000; // 1s, 2s, 4s backoff
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return request(path, options, retries - 1);
+    }
 
-  if (!res.ok || !data.success) {
-    throw new Error(data.error || data.message || `Request failed (${res.status})`);
-  }
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      throw new Error(`Server error: ${res.status} ${res.statusText}`);
+    }
 
-  return data.data;
+    // Token expired → clear storage and redirect to login
+    if (res.status === 401) {
+      localStorage.removeItem("auvia_token");
+      localStorage.removeItem("auvia_clinic_id");
+      localStorage.removeItem("auvia_user");
+      window.location.href = "/";
+      throw new Error(data.error || "Session expired. Please log in again.");
+    }
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || data.message || `Request failed (${res.status})`);
+    }
+
+    return data.data;
+  } catch (error) {
+    // Log error but provide more context
+    console.error(`API request failed: ${path}`, error);
+    throw error;
+  }
 }
 
 // ─── Appointments ─────────────────────────────────────────────────────────────

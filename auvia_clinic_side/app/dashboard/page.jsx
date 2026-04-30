@@ -139,7 +139,7 @@ function AppointmentRow({ appt, onStatusChange }) {
 // ─── Dashboard Page ───────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const today = new Date().toISOString().split("T")[0];
+  const yesterday = new Date(new Date().getTime() - 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
   const [activeMonitoring, setActiveMonitoring] = useState(true);
   // "all" | doctor.id
@@ -152,7 +152,7 @@ export default function DashboardPage() {
   const { stats: overallCallStats, loading: overallLoading } = useOverallCallStats();
 
   const { schedule, loading, error, lastRefresh, refresh, updateAppointmentStatus } =
-    useSchedule(today);
+    useSchedule(yesterday);
 
   // Filter by selected doctor id (or show all)
   const filteredSchedule = schedule.filter((appt) => {
@@ -189,7 +189,7 @@ export default function DashboardPage() {
           {/* ── Header ── */}
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <h1 className="text-xl font-semibold">Morning Overview</h1>
+              <h1 className="text-xl font-semibold">Yesterday&apos;s Overview</h1>
               <p className="text-sm text-slate-500">{todayFormatted} • {timeNow}</p>
               {lastRefresh && (
                 <p className="text-xs text-slate-400 mt-0.5">
@@ -208,12 +208,7 @@ export default function DashboardPage() {
                 <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
                 Refresh
               </Button>
-              <Button
-                variant="outline"
-                className="rounded-full px-4 transition-transform duration-200 hover:-translate-y-0.5"
-              >
-                Operational Audit
-              </Button>
+              
               <NewAppointmentDialog
                 className="rounded-full px-4 transition-transform duration-200 hover:-translate-y-0.5"
                 onBooked={refresh}
@@ -241,7 +236,7 @@ export default function DashboardPage() {
                     <Calendar className="h-4 w-4" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold">Today&apos;s Schedule</p>
+                    <p className="text-sm font-semibold">Yesterday&apos;s Schedule</p>
                     <p className="text-xs text-slate-400">
                       {loading
                         ? "Loading…"

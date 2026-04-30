@@ -73,7 +73,7 @@ export default function LiveActivityPanel() {
         {activities.length === 0 ? (
           <p className="text-xs text-slate-400 text-center py-6">No recent activity yet.</p>
         ) : (
-          activities.map((item) => {
+          activities.slice(0, 5).map((item) => {
             const sub = metaSubline(item.meta);
             return (
               <div key={item.id} className="flex gap-3 items-start">
