@@ -119,6 +119,25 @@ function DayBreakdownRow({ day, earnings, total, isHighest }) {
   );
 }
 
+// ─── Top performing doctors row ───────────────────────────────────────────────
+function TopDoctorRow({ rank, name, earnings, appointments, percentage }) {
+  return (
+    <div className="flex items-center gap-4 p-3 rounded-xl hover:bg-slate-50 transition-colors">
+      <div className="flex items-center justify-center h-8 w-8 rounded-full bg-emerald-100 flex-shrink-0">
+        <span className="text-sm font-bold text-emerald-700">#{rank}</span>
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-slate-900 truncate">{name}</p>
+        <p className="text-xs text-slate-500">{appointments} appointments</p>
+      </div>
+      <div className="text-right flex-shrink-0">
+        <p className="text-sm font-bold text-slate-900">₹{(earnings / 1000).toFixed(1)}k</p>
+        <p className="text-xs text-emerald-600 font-semibold">{percentage}% of total</p>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function EarningsPage() {
   const [weeklyData, setWeeklyData] = useState([]);
@@ -132,6 +151,7 @@ export default function EarningsPage() {
   const [doctorAppointmentCount, setDoctorAppointmentCount] = useState(0);
   const [doctorWeeklyEarnings, setDoctorWeeklyEarnings] = useState(0);
   const [doctorLoading, setDoctorLoading] = useState(false);
+  const [doctorStats, setDoctorStats] = useState([]);
 
   const getWeekBounds = (dateStr) => {
     const d = new Date(dateStr);
@@ -186,7 +206,41 @@ export default function EarningsPage() {
     }
   };
 
-  useEffect(() => { fetchEarnings(selectedDate); }, [selectedDate]);
+  useEffect(() => {
+    fetchEarnings(selectedDate);
+    fetchDoctorStats(selectedDate);
+  }, [selectedDate]);
+
+  const fetchDoctorStats = async (date = selectedDate) => {
+    try {
+      const { startStr, endStr } = getWeekBounds(date);
+      const doctorData = [];
+
+      for (const doctor of doctors) {
+        const appointments = await doctorsApi.getAppointments(doctor.id, {
+          status: "completed",
+          start_date: startStr,
+          end_date: endStr,
+          limit: 100
+        });
+
+        const earnings = appointments?.reduce((s, a) => s + (parseFloat(a.payment_amount) || 0), 0) || 0;
+        const count = appointments?.length || 0;
+
+        doctorData.push({
+          id: doctor.id,
+          name: doctor.name,
+          earnings,
+          appointments: count
+        });
+      }
+
+      const sorted = doctorData.sort((a, b) => b.earnings - a.earnings);
+      setDoctorStats(sorted);
+    } catch (err) {
+      setDoctorStats([]);
+    }
+  };
 
   useEffect(() => {
     doctorsApi.list()
@@ -316,28 +370,59 @@ export default function EarningsPage() {
           <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
 
             {/* Chart */}
-            <Card className="border-slate-100 shadow-sm">
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-sm font-semibold text-slate-700">Weekly Earnings</CardTitle>
-                    <p className="text-xs text-slate-400 mt-0.5">{weekLabel}</p>
+            <div className="flex flex-col gap-6">
+              <Card className="border-slate-100 shadow-sm">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-sm font-semibold text-slate-700">Weekly Earnings</CardTitle>
+                      <p className="text-xs text-slate-400 mt-0.5">{weekLabel}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-semibold px-2 py-1 rounded-full bg-emerald-50 text-emerald-700">
+                        ₹{totalEarnings.toLocaleString("en-IN")} total
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-semibold px-2 py-1 rounded-full bg-emerald-50 text-emerald-700">
-                      ₹{totalEarnings.toLocaleString("en-IN")} total
-                    </span>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <div className="h-64 animate-pulse rounded-xl bg-slate-100" />
-                ) : (
-                  <EarningsChart data={weeklyData} />
-                )}
-              </CardContent>
-            </Card>
+                </CardHeader>
+                <CardContent>
+                  {loading ? (
+                    <div className="h-64 animate-pulse rounded-xl bg-slate-100" />
+                  ) : (
+                    <EarningsChart data={weeklyData} />
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Top Performing Doctors */}
+              <Card className="border-slate-100 shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold text-slate-700">Top Performing Doctors</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {loading ? (
+                    Array.from({ length: 3 }).map((_, i) => (
+                      <div key={i} className="h-14 animate-pulse rounded bg-slate-100 mb-2" />
+                    ))
+                  ) : doctorStats.length === 0 ? (
+                    <div className="text-center py-6 text-slate-400 text-sm">No data available</div>
+                  ) : (
+                    <div className="max-h-96 overflow-y-auto space-y-1 pr-2">
+                      {doctorStats.map((doc, idx) => (
+                        <TopDoctorRow
+                          key={doc.id}
+                          rank={idx + 1}
+                          name={`Dr. ${doc.name}`}
+                          earnings={doc.earnings}
+                          appointments={doc.appointments}
+                          percentage={totalEarnings > 0 ? Math.round((doc.earnings / totalEarnings) * 100) : 0}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
 
             {/* Right column */}
             <div className="flex flex-col gap-6">
