@@ -168,7 +168,10 @@ function getWeekDays(dateStr) {
 }
 
 function toYMD(date) {
-  return date.toISOString().slice(0, 10);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function buildWeekLabel(anchorDate) {
@@ -305,7 +308,7 @@ function WeekView({ doctor, anchorDate }) {
   const { weekData, loading } = useWeekSchedule(doctor.id, anchorDate);
   const { slotDurationMinutes, timeSlots, loading: slotsLoading } = useDoctorScheduleSlots(doctor.id);
   const weekDays = getWeekDays(anchorDate);
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = toYMD(new Date());
 
   const slotMaps = useMemo(() => {
     const maps = {};
@@ -455,22 +458,23 @@ function DayView({ doctor, anchorDate, onDateChange }) {
   const { timeSlots, slotDurationMinutes, loading: slotsLoading } = useDoctorScheduleSlots(doctor.id);
 
   const currentDate = new Date(`${anchorDate}T00:00:00`);
-  const isToday = anchorDate === new Date().toISOString().slice(0, 10);
+  const isToday = anchorDate === toYMD(new Date());
 
   const handlePrevDay = useCallback(() => {
     const d = new Date(`${anchorDate}T00:00:00`);
     d.setDate(d.getDate() - 1);
-    onDateChange(d.toISOString().slice(0, 10));
+    onDateChange(toYMD(d));
   }, [anchorDate, onDateChange]);
 
   const handleNextDay = useCallback(() => {
     const d = new Date(`${anchorDate}T00:00:00`);
     d.setDate(d.getDate() + 1);
-    onDateChange(d.toISOString().slice(0, 10));
+    onDateChange(toYMD(d));
   }, [anchorDate, onDateChange]);
 
   const handleToday = useCallback(() => {
-    onDateChange(new Date().toISOString().slice(0, 10));
+    const today = new Date();
+    onDateChange(toYMD(today));
   }, [onDateChange]);
 
   useEffect(() => {
@@ -601,7 +605,7 @@ function MonthView({ doctor, anchorDate }) {
     setLoading(true);
     const requests = [];
     for (let day = 1; day <= daysInMonth; day++) {
-      const dateStr = new Date(year, month, day).toISOString().slice(0, 10);
+      const dateStr = toYMD(new Date(year, month, day));
       requests.push(
         appointmentsApi
           .getSchedule(dateStr, doctor.id)
@@ -653,9 +657,9 @@ function MonthView({ doctor, anchorDate }) {
             return <div key={`empty-${idx}`} className="h-24 bg-slate-50 rounded-lg" />;
           }
 
-          const dateStr = new Date(year, month, day).toISOString().slice(0, 10);
+          const dateStr = toYMD(new Date(year, month, day));
           const appts = monthData[dateStr] || [];
-          const isToday = dateStr === new Date().toISOString().slice(0, 10);
+          const isToday = dateStr === toYMD(new Date());
 
           return (
             <div
@@ -786,7 +790,12 @@ export default function SchedulePage() {
   const [viewMode, setViewMode]                 = useState("week");
   const [viewModeDropdownOpen, setViewModeDropdownOpen] = useState(false);
   const [selectedDate, setSelectedDate]         = useState(
-    () => new Date().toISOString().slice(0, 10)
+    () => {
+      const year = new Date().getFullYear();
+      const month = String(new Date().getMonth() + 1).padStart(2, '0');
+      const day = String(new Date().getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
   );
   const viewModeDropdownRef = useRef(null);
 
@@ -818,13 +827,13 @@ export default function SchedulePage() {
   const shiftDate = (offset) => {
     const d = new Date(`${selectedDate}T00:00:00`);
     d.setDate(d.getDate() + offset);
-    setSelectedDate(d.toISOString().slice(0, 10));
+    setSelectedDate(toYMD(d));
   };
 
   const visibleDoctors = doctors;
 
   const handleShiftWeek = (offset) => {
-    if (offset === "today") { setSelectedDate(new Date().toISOString().slice(0, 10)); return; }
+    if (offset === "today") { setSelectedDate(toYMD(new Date())); return; }
     shiftDate(offset);
   };
 
@@ -857,7 +866,7 @@ export default function SchedulePage() {
                     />
                     <Button
                       variant="ghost" size="sm" className="h-6 w-6 rounded-full p-0"
-                      onClick={() => setSelectedDate(new Date().toISOString().slice(0, 10))}
+                      onClick={() => setSelectedDate(toYMD(new Date()))}
                     >
                       <FiX />
                     </Button>
