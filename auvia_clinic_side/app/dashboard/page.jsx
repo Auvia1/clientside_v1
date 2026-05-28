@@ -15,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "../components/ui/tabs";
-import { useSchedule } from "../hooks/useSchedule";
+import { useSchedule, useClinicSettings } from "../hooks/useSchedule";
 import { useOverallCallStats } from "../hooks/useOverallCallStats";
 import { doctorsApi } from "../lib/api";
 import { calculatePercentage } from "../lib/utils";
@@ -73,7 +73,7 @@ function statusLabel(status) {
 
 // ─── AppointmentRow ───────────────────────────────────────────────────────────
 
-function AppointmentRow({ appt, onStatusChange }) {
+function AppointmentRow({ appt, onStatusChange, isSlotsBased }) {
   const { time, period } = formatTime(appt.start_time);
   const [updating, setUpdating] = useState(false);
 
@@ -95,6 +95,9 @@ function AppointmentRow({ appt, onStatusChange }) {
       }`}
     >
       <div className="text-xs font-semibold">
+        {!isSlotsBased && appt.token_number != null && (
+          <span className="block text-emerald-600 mb-0.5">Token #{appt.token_number}</span>
+        )}
         {time}
         <span className="block text-[10px] text-slate-400">{period}</span>
       </div>
@@ -140,6 +143,9 @@ function AppointmentRow({ appt, onStatusChange }) {
 
 export default function DashboardPage() {
   const yesterday = new Date(new Date().getTime() - 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+  const todayDate = new Date().toISOString().split("T")[0];
+
+  const { isSlotsBased, loading: settingsLoading } = useClinicSettings();
 
   const [activeMonitoring, setActiveMonitoring] = useState(true);
   // "all" | doctor.id
@@ -151,8 +157,14 @@ export default function DashboardPage() {
   const doctors                                 = useDoctors();
   const { stats: overallCallStats, loading: overallLoading } = useOverallCallStats();
 
-  const { schedule, loading, error, lastRefresh, refresh, updateAppointmentStatus } =
-    useSchedule(yesterday);
+  const targetDate = isSlotsBased ? yesterday : todayDate;
+
+  const { schedule, loading: scheduleLoading, error, lastRefresh, refresh, updateAppointmentStatus } =
+    useSchedule(targetDate);
+
+  const loading = settingsLoading || scheduleLoading;
+  const displayTitle = isSlotsBased ? "Yesterday's Overview" : "Today's Overview";
+  const scheduleTitle = isSlotsBased ? "Yesterday's Schedule" : "Today's Schedule";
 
   // Filter by selected doctor id (or show all)
   const filteredSchedule = schedule.filter((appt) => {
@@ -189,7 +201,7 @@ export default function DashboardPage() {
           {/* ── Header ── */}
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <h1 className="text-xl font-semibold">Yesterday&apos;s Overview</h1>
+              <h1 className="text-xl font-semibold">{displayTitle}</h1>
               <p className="text-sm text-slate-500">{todayFormatted} • {timeNow}</p>
               {lastRefresh && (
                 <p className="text-xs text-slate-400 mt-0.5">
@@ -236,7 +248,7 @@ export default function DashboardPage() {
                     <Calendar className="h-4 w-4" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold">Yesterday&apos;s Schedule</p>
+                    <p className="text-sm font-semibold">{scheduleTitle}</p>
                     <p className="text-xs text-slate-400">
                       {loading
                         ? "Loading…"
@@ -282,6 +294,7 @@ export default function DashboardPage() {
                         key={appt.id}
                         appt={appt}
                         onStatusChange={updateAppointmentStatus}
+                        isSlotsBased={isSlotsBased}
                       />
                     ))
                   )}

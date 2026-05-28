@@ -3,7 +3,7 @@
 // hooks/useSchedule.js
 
 import { useState, useEffect, useCallback } from "react";
-import { appointmentsApi, doctorsApi, patientsApi, clinicsApi } from "../lib/api";
+import { appointmentsApi, doctorsApi, patientsApi, clinicsApi, slotsApi } from "../lib/api";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -318,6 +318,82 @@ export function useDoctorScheduleSlots(doctorId) {
 
   // Always return fixed height h-[120px] for all doctors
   return { slotDurationMinutes, timeSlots, slotCardHeightClass: "h-[120px]", loading, error };
+}
+
+// ─── useTokenSystemSlots ──────────────────────────────────────────────────────
+/**
+ * Fetches slots from the slots_for_token_system table for token-based clinics.
+ * Returns slots for all 7 days of the week organized by day_of_week.
+ */
+export function useTokenSystemSlots(doctorId, anchorDate) {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [slotsByDay, setSlotsByDay] = useState({});
+
+  useEffect(() => {
+    if (!doctorId) {
+      setLoading(false);
+      return;
+    }
+
+    (async () => {
+      try {
+        setLoading(true);
+        // Get clinic_id from localStorage
+        const clinicId = localStorage.getItem("auvia_clinic_id");
+        if (!clinicId) {
+          console.error("Clinic ID not found in localStorage");
+          setSlotsByDay({});
+          setError("Clinic ID not available");
+          setLoading(false);
+          return;
+        }
+
+        // Fetch all slots for this doctor with clinic_id
+        const allSlots = await slotsApi.list({
+          clinic_id: clinicId,
+          doctor_id: doctorId,
+        });
+
+        if (!allSlots || allSlots.length === 0) {
+          setSlotsByDay({});
+          setError(null);
+          setLoading(false);
+          return;
+        }
+
+        // Create a map of slots by day of week (0=Sunday, 1=Monday, ..., 6=Saturday)
+        const slotsMap = {};
+        for (let dow = 0; dow < 7; dow++) {
+          slotsMap[dow] = [];
+        }
+
+        // Group slots by day of week and sort by start_time
+        for (const slot of allSlots) {
+          const dow = slot.day_of_week;
+          if (dow >= 0 && dow <= 6) {
+            slotsMap[dow].push(slot);
+          }
+        }
+
+        // Sort slots by start_time within each day
+        Object.keys(slotsMap).forEach(dow => {
+          slotsMap[dow].sort((a, b) => a.start_time.localeCompare(b.start_time));
+        });
+
+        setSlotsByDay(slotsMap);
+        setError(null);
+      } catch (err) {
+        console.error("Error fetching token system slots:", err);
+        setSlotsByDay({});
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [doctorId]);
+
+  return { slotsByDay, loading, error };
 }
 
 /**

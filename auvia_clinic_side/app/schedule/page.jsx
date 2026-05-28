@@ -19,9 +19,9 @@ import {
   FiX, FiRefreshCw, FiAlertCircle, FiLoader, FiActivity,
   FiCheck, FiUserX, FiGrid, FiList, FiArchive, FiClock, FiColumns, FiChevronDown,
 } from "react-icons/fi";
-import { useClinicSchedule, usePatientSearch, useDoctorScheduleSlots } from "../hooks/useSchedule";
+import { useClinicSchedule, usePatientSearch, useDoctorScheduleSlots, useTokenSystemSlots } from "../hooks/useSchedule";
 import { useLiveActivity } from "../hooks/useLiveActivity";
-import { appointmentsApi, doctorsApi } from "../lib/api";
+import { appointmentsApi, doctorsApi, clinicsApi } from "../lib/api";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -63,6 +63,36 @@ function buildSlotMap(appts = [], timeSlots, slotDurationMinutes) {
     const slotStartHour = slotLabelToHour(slot);
     const slotStartMinutes = slotStartHour * 60 + extractMinutesFromLabel(slot);
     const slotEndMinutes = slotStartMinutes + slotDurationMinutes;
+
+    map[slot] = appts.filter((a) => {
+      const apptHour = getISTHour(a.appointment_start);
+      const apptMinutes = apptHour * 60 + extractMinutesFromLabel(a.appointment_start);
+      return apptMinutes >= slotStartMinutes && apptMinutes < slotEndMinutes;
+    });
+  }
+  return map;
+}
+
+function buildTokenSlotMap(appts = [], timeSlots, daySlots) {
+  const map = {};
+
+  // For each time slot, match it with a slot from daySlots and find appointments in that time range
+  for (let i = 0; i < timeSlots.length; i++) {
+    const slot = timeSlots[i];
+    const slotData = daySlots[i];
+
+    if (!slotData) {
+      map[slot] = [];
+      continue;
+    }
+
+    // For token system, match appointments within the slot's time range
+    const slotStartTime = slotData.start_time; // "HH:MM:SS"
+    const slotEndTime = slotData.end_time;     // "HH:MM:SS"
+    const [startH, startM] = slotStartTime.split(":").map(Number);
+    const [endH, endM] = slotEndTime.split(":").map(Number);
+    const slotStartMinutes = startH * 60 + startM;
+    const slotEndMinutes = endH * 60 + endM;
 
     map[slot] = appts.filter((a) => {
       const apptHour = getISTHour(a.appointment_start);
@@ -213,7 +243,7 @@ function useWeekSchedule(doctorId, anchorDate) {
 
 // ─── AppointmentCell ──────────────────────────────────────────────────────────
 
-function AppointmentCell({ appt, onStatusChange, slotCardHeightClass = "appointment-slot" }) {
+function AppointmentCell({ appt, onStatusChange, slotCardHeightClass = "appointment-slot", isTokenBased = false }) {
   const [updating, setUpdating]       = useState(false);
   const [localStatus, setLocalStatus] = useState(appt.status);
 
@@ -244,6 +274,36 @@ function AppointmentCell({ appt, onStatusChange, slotCardHeightClass = "appointm
 
   const colors = statusColorMap[localStatus] || { bg: "#ffffff", border: "#cbd5e1", text: "#1e293b" };
 
+  // For token-based system, show only patient name
+  if (isTokenBased) {
+    return (
+      <div
+        className={`${slotCardHeightClass} overflow-hidden relative border-l-4 rounded-r-lg flex flex-col justify-center shadow-sm transition-all duration-200 hover:shadow-md cursor-pointer`}
+        style={{
+          backgroundColor: colors.bg,
+          borderLeftColor: colors.border,
+          padding: "8px 10px",
+          margin: "2px 3px 2px 0",
+        }}
+      >
+        <p className="text-[13px] font-semibold truncate leading-tight" style={{ color: colors.text }}>
+          {appt.patient_name || "Unknown"}
+        </p>
+        {appt.token_number && (
+          <p className="text-[10px] font-semibold text-amber-700 mt-1">
+            Token #{appt.token_number}
+          </p>
+        )}
+        {updating && (
+          <div className="absolute inset-0 flex items-center justify-center bg-white/50 rounded-r-lg">
+            <FiLoader className="h-3 w-3 animate-spin text-slate-600" />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // For regular schedule, show detailed info
   return (
     <div
       className={`${slotCardHeightClass} overflow-hidden relative border-l-4 rounded-r-lg flex flex-col justify-between shadow-sm transition-all duration-200 hover:shadow-md cursor-pointer`}
@@ -262,6 +322,11 @@ function AppointmentCell({ appt, onStatusChange, slotCardHeightClass = "appointm
         <p className="text-[10px] text-slate-500 truncate mt-0.5 leading-tight">
           {appt.reason || "—"}
         </p>
+        {appt.token_number && (
+          <p className="text-[9px] font-semibold text-amber-700 mt-0.5">
+            Token #{appt.token_number}
+          </p>
+        )}
       </div>
 
       {updating && (
@@ -275,7 +340,7 @@ function AppointmentCell({ appt, onStatusChange, slotCardHeightClass = "appointm
 
 // ─── SlotCell ─────────────────────────────────────────────────────────────────
 
-function SlotCell({ appts = [], onStatusChange, slotCardHeightClass = "appointment-slot" }) {
+function SlotCell({ appts = [], onStatusChange, slotCardHeightClass = "appointment-slot", isTokenBased = false }) {
   if (appts.length === 0) {
     return (
       <div
@@ -290,6 +355,7 @@ function SlotCell({ appts = [], onStatusChange, slotCardHeightClass = "appointme
         appt={appts[0]}
         onStatusChange={onStatusChange}
         slotCardHeightClass={slotCardHeightClass}
+        isTokenBased={isTokenBased}
       />
       {appts.length > 1 && (
         <div className="absolute bottom-0 inset-x-0 z-10 flex items-center justify-center bg-white/90 backdrop-blur-sm py-0.5 border-t border-slate-100 rounded-b-lg">
@@ -304,21 +370,88 @@ function SlotCell({ appts = [], onStatusChange, slotCardHeightClass = "appointme
 
 // ─── WeekView ─────────────────────────────────────────────────────────────────
 
-function WeekView({ doctor, anchorDate }) {
+function WeekView({ doctor, anchorDate, isTokenBased }) {
   const { weekData, loading } = useWeekSchedule(doctor.id, anchorDate);
-  const { slotDurationMinutes, timeSlots, loading: slotsLoading } = useDoctorScheduleSlots(doctor.id);
+  const slotDataRegular = useDoctorScheduleSlots(doctor.id);
+  const slotDataToken = useTokenSystemSlots(doctor.id, anchorDate);
+
   const weekDays = getWeekDays(anchorDate);
   const todayStr = toYMD(new Date());
+  const slotsLoading = isTokenBased ? slotDataToken.loading : slotDataRegular.loading;
 
+  // Helper: Convert HH:MM:SS to 12-hour format label
+  const timeToLabel = useCallback((timeStr) => {
+    if (!timeStr) return "";
+    const startTime = timeStr.slice(0, 5); // "HH:MM"
+    const [h, m] = startTime.split(":").map(Number);
+    const period = h >= 12 ? "PM" : "AM";
+    const displayH = h % 12 || 12;
+    return `${displayH}:${String(m).padStart(2, "0")} ${period}`;
+  }, []);
+
+  // For token system: get slots for each day of the week with their IDs
+  const getTokenSlotsByDay = useCallback(() => {
+    const slotsPerDay = {};
+
+    for (let dow = 0; dow < 7; dow++) {
+      const slotsForDay = slotDataToken.slotsByDay[dow] || [];
+      // Sort by start_time
+      slotsPerDay[dow] = slotsForDay.sort((a, b) => a.start_time.localeCompare(b.start_time));
+    }
+
+    return slotsPerDay;
+  }, [slotDataToken.slotsByDay]);
+
+  const tokenSlotsByDay = getTokenSlotsByDay();
+
+  // Build slot maps for token system
   const slotMaps = useMemo(() => {
     const maps = {};
-    for (const d of weekDays) {
-      const ymd = toYMD(d);
-      maps[ymd] = buildSlotMap(weekData[ymd] || [], timeSlots, slotDurationMinutes);
+
+    if (isTokenBased) {
+      // For token system: create a map of { date: { slotId: [appointments] } }
+      for (const d of weekDays) {
+        const ymd = toYMD(d);
+        const dayOfWeek = d.getDay(); // 0=Sunday, 1=Monday, etc.
+        const daySlots = tokenSlotsByDay[dayOfWeek] || [];
+
+        maps[ymd] = {};
+
+        // Initialize each slot with empty array
+        for (const slot of daySlots) {
+          maps[ymd][slot.id] = [];
+        }
+
+        // Get appointments for this day
+        const dayAppts = weekData[ymd] || [];
+
+        // Distribute appointments across slots
+        // For token system: just put all appointments in their respective slots if specified,
+        // or distribute them round-robin across available slots
+        for (let i = 0; i < dayAppts.length; i++) {
+          const appt = dayAppts[i];
+          if (daySlots.length > 0) {
+            // Distribute appointments across available slots
+            const slotIndex = i % daySlots.length;
+            maps[ymd][daySlots[slotIndex].id].push(appt);
+          }
+        }
+      }
+    } else {
+      // Regular schedule logic
+      const regularTimeSlots = slotDataRegular.timeSlots || [];
+      for (const d of weekDays) {
+        const ymd = toYMD(d);
+        maps[ymd] = buildSlotMap(weekData[ymd] || [], regularTimeSlots, slotDataRegular.slotDurationMinutes);
+      }
     }
+
     return maps;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [weekData, timeSlots, slotDurationMinutes]);
+  }, [weekData, isTokenBased, tokenSlotsByDay, weekDays, slotDataRegular]);
+
+  // Get timeSlots for regular schedule display
+  const timeSlots = slotDataRegular.timeSlots || [];
 
   if (loading || slotsLoading) {
     return (
@@ -393,72 +526,286 @@ function WeekView({ doctor, anchorDate }) {
         })}
       </div>
 
-      {/* ── Spacer between header and first time row ── */}
+      {/* ── Spacer between header and slots ── */}
       <div style={{ height: "10px", backgroundColor: "#fafbfc", borderBottom: "1px solid #f1f5f9" }} />
 
-      {/* ── Time rows ── */}
-      <div className="relative" style={{ paddingTop: "2px", minWidth: "max-content" }}>
-        {timeSlots.map((slot, idx) => (
-          <div
-            key={slot}
-            className="appointment-slot"
-            style={{
-              display: "grid",
-              gridTemplateColumns: "80px repeat(7, 140px)",
-              borderBottom: "1px solid #f4f6f8",
-              backgroundColor: idx % 2 === 0 ? "#ffffff" : "#fafbfc",
-            }}
-          >
-            {/* Time label cell */}
-            <div
-              className="flex items-center justify-center border-r border-slate-100"
-              style={{ paddingLeft: "4px", paddingRight: "4px" }}
-            >
-              <span className="text-[10px] font-semibold text-slate-400 tabular-nums leading-none tracking-tight">
-                {slot}
-              </span>
-            </div>
+      {/* ── Token System: Display each slot as a separate row ── */}
+      {isTokenBased && (
+        <div className="relative" style={{ minWidth: "max-content" }}>
+          {weekDays.map((d) => {
+            const ymd = toYMD(d);
+            const dayOfWeek = d.getDay();
+            const daySlots = tokenSlotsByDay[dayOfWeek] || [];
 
-            {/* Day slot cells */}
-            {weekDays.map((d) => {
-              const ymd   = toYMD(d);
-              const isToday = ymd === todayStr;
-              const appts = slotMaps[ymd]?.[slot] ?? [];
-              return (
+            return (
+              <div key={ymd}>
+                {daySlots.map((slot, slotIdx) => {
+                  const startLabel = timeToLabel(slot.start_time);
+                  const endLabel = timeToLabel(slot.end_time);
+                  const slotLabel = `${startLabel} - ${endLabel}`;
+
+                  return (
+                    <div
+                      key={`${slot.id}-${slotIdx}`}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "80px repeat(7, 140px)",
+                        borderBottom: "1px solid #f4f6f8",
+                        backgroundColor: slotIdx % 2 === 0 ? "#ffffff" : "#fafbfc",
+                        minWidth: "max-content",
+                      }}
+                    >
+                      {/* Time slot label */}
+                      <div
+                        className="flex items-center justify-center border-r border-slate-100"
+                        style={{ paddingLeft: "4px", paddingRight: "4px", minHeight: "80px" }}
+                      >
+                        <span className="text-[9px] font-semibold text-slate-600 text-center leading-tight">
+                          {slotLabel}
+                        </span>
+                      </div>
+
+                      {/* Day columns */}
+                      {weekDays.map((dayToDisplay) => {
+                        const displayYmd = toYMD(dayToDisplay);
+                        const isToday = displayYmd === todayStr;
+                        const dayOfWeekToDisplay = dayToDisplay.getDay();
+                        const daySlotForDisplay = tokenSlotsByDay[dayOfWeekToDisplay] || [];
+
+                        // Find this specific slot in the day's slots
+                        const currentSlot = daySlotForDisplay.find(s => s.id === slot.id);
+
+                        if (!currentSlot) {
+                          // This slot doesn't exist for this day
+                          return (
+                            <div
+                              key={`${displayYmd}-empty`}
+                              style={{
+                                backgroundColor: isToday ? "rgba(16,185,129,0.03)" : "transparent",
+                                borderRight: "1px solid #f1f5f9",
+                                minHeight: "80px",
+                              }}
+                            />
+                          );
+                        }
+
+                        // Get appointments for this day in this slot
+                        const appts = slotMaps[displayYmd]?.[currentSlot.id] || [];
+
+                        return (
+                          <div
+                            key={`${displayYmd}-${currentSlot.id}`}
+                            style={{
+                              backgroundColor: isToday ? "rgba(16,185,129,0.03)" : "transparent",
+                              borderRight: "1px solid #f1f5f9",
+                              minHeight: "80px",
+                              padding: "4px 3px",
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: "4px",
+                              overflow: "auto",
+                            }}
+                          >
+                            {appts.map((appt) => {
+                              const statusColorMap = {
+                                confirmed: { bg: "#f0f9ff", border: "#0ea5e9", text: "#075985" },
+                                pending: { bg: "#fffbeb", border: "#f59e0b", text: "#92400e" },
+                                completed: { bg: "#f0fdf4", border: "#059669", text: "#065f46" },
+                                cancelled: { bg: "#fef2f2", border: "#dc2626", text: "#7f1d1d" },
+                                no_show: { bg: "#fff7ed", border: "#f97316", text: "#7c2d12" },
+                                rescheduled: { bg: "#faf5ff", border: "#a855f7", text: "#5b21b6" },
+                              };
+
+                              const colors = statusColorMap[appt.status] || {
+                                bg: "#ffffff",
+                                border: "#cbd5e1",
+                                text: "#1e293b",
+                              };
+
+                              return (
+                                <div
+                                  key={appt.id}
+                                  className="border-l-4 rounded-md shadow-sm hover:shadow-md transition-all cursor-pointer text-center"
+                                  style={{
+                                    backgroundColor: colors.bg,
+                                    borderLeftColor: colors.border,
+                                    padding: "4px 6px",
+                                    fontSize: "10px",
+                                    fontWeight: "600",
+                                    color: colors.text,
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                  title={`${appt.patient_name}${appt.token_number ? ` (Token #${appt.token_number})` : ""}`}
+                                >
+                                  {appt.patient_name}
+                                  {appt.token_number && (
+                                    <div style={{ fontSize: "8px", fontWeight: "700", color: "#b45309" }}>
+                                      #{appt.token_number}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Regular Schedule: Display time slots as rows ── */}
+      {!isTokenBased && (
+        <div className="relative" style={{ paddingTop: "2px", minWidth: "max-content" }}>
+          {(slotDataRegular.timeSlots || []).map((slot, idx) => {
+            const slotLabel = typeof slot === 'string' ? slot : slot.label;
+            return (
+              <div
+                key={idx}
+                className="appointment-slot"
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "80px repeat(7, 140px)",
+                  borderBottom: "1px solid #f4f6f8",
+                  backgroundColor: idx % 2 === 0 ? "#ffffff" : "#fafbfc",
+                }}
+              >
+                {/* Time label cell */}
                 <div
-                  key={ymd}
-                  className="relative"
-                  style={{
-                    /* subtle today column tint */
-                    backgroundColor: isToday ? "rgba(16,185,129,0.03)" : "transparent",
-                    borderRight: "1px solid #f1f5f9",
-                  }}
+                  className="flex items-center justify-center border-r border-slate-100"
+                  style={{ paddingLeft: "4px", paddingRight: "4px" }}
                 >
-                  <SlotCell
-                    appts={appts}
-                    onStatusChange={(id, status) => appointmentsApi.updateStatus(id, status)}
-                    slotCardHeightClass="appointment-slot"
-                  />
+                  <span className="text-[10px] font-semibold text-slate-400 tabular-nums leading-none tracking-tight">
+                    {slotLabel}
+                  </span>
                 </div>
-              );
-            })}
-          </div>
-        ))}
-      </div>
+
+                {/* Day slot cells */}
+                {weekDays.map((d) => {
+                  const ymd = toYMD(d);
+                  const isToday = ymd === todayStr;
+                  const appts = slotMaps[ymd]?.[slotLabel] ?? [];
+                  return (
+                    <div
+                      key={ymd}
+                      className="relative"
+                      style={{
+                        backgroundColor: isToday ? "rgba(16,185,129,0.03)" : "transparent",
+                        borderRight: "1px solid #f1f5f9",
+                      }}
+                    >
+                      <SlotCell
+                        appts={appts}
+                        onStatusChange={(id, status) => appointmentsApi.updateStatus(id, status)}
+                        slotCardHeightClass="appointment-slot"
+                        isTokenBased={false}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Fallback for regular schedule ── */}
+      {!isTokenBased && (
+        <div className="relative" style={{ paddingTop: "2px", minWidth: "max-content" }}>
+          {timeSlots.map((slot, idx) => {
+            const slotLabel = typeof slot === 'string' ? slot : slot.label;
+            return (
+              <div
+                key={idx}
+                className="appointment-slot"
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "80px repeat(7, 140px)",
+                  borderBottom: "1px solid #f4f6f8",
+                  backgroundColor: idx % 2 === 0 ? "#ffffff" : "#fafbfc",
+                }}
+              >
+                {/* Time label cell */}
+                <div
+                  className="flex items-center justify-center border-r border-slate-100"
+                  style={{ paddingLeft: "4px", paddingRight: "4px" }}
+                >
+                  <span className="text-[10px] font-semibold text-slate-400 tabular-nums leading-none tracking-tight">
+                    {slotLabel}
+                  </span>
+                </div>
+
+                {/* Day slot cells */}
+                {weekDays.map((d) => {
+                  const ymd = toYMD(d);
+                  const isToday = ymd === todayStr;
+                  const appts = slotMaps[ymd]?.[slotLabel] ?? [];
+                  return (
+                    <div
+                      key={ymd}
+                      className="relative"
+                      style={{
+                        backgroundColor: isToday ? "rgba(16,185,129,0.03)" : "transparent",
+                        borderRight: "1px solid #f1f5f9",
+                      }}
+                    >
+                      <SlotCell
+                        appts={appts}
+                        onStatusChange={(id, status) => appointmentsApi.updateStatus(id, status)}
+                        slotCardHeightClass="appointment-slot"
+                        isTokenBased={false}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
 
 // ─── DayView ──────────────────────────────────────────────────────────────────
 
-function DayView({ doctor, anchorDate, onDateChange }) {
+function DayView({ doctor, anchorDate, onDateChange, isTokenBased }) {
   const { weekData, loading } = useWeekSchedule(doctor.id, anchorDate);
   const ymd = toYMD(new Date(`${anchorDate}T00:00:00`));
   const appts = weekData[ymd] || [];
-  const { timeSlots, slotDurationMinutes, loading: slotsLoading } = useDoctorScheduleSlots(doctor.id);
+  const slotDataRegular = useDoctorScheduleSlots(doctor.id);
+  const slotDataToken = useTokenSystemSlots(doctor.id, anchorDate);
 
   const currentDate = new Date(`${anchorDate}T00:00:00`);
+  const dayOfWeek = currentDate.getDay(); // 0=Sunday, 1=Monday, etc.
   const isToday = anchorDate === toYMD(new Date());
+  const slotsLoading = isTokenBased ? slotDataToken.loading : slotDataRegular.loading;
+
+  // Generate time slots based on booking model
+  const getTimeSlots = useCallback(() => {
+    if (!isTokenBased) {
+      return slotDataRegular.timeSlots || [];
+    }
+
+    // For token system, get slots for the current day of week
+    const daySlots = slotDataToken.slotsByDay[dayOfWeek] || [];
+    return daySlots.map(slot => {
+      const startTime = slot.start_time.slice(0, 5); // "HH:MM"
+      const [h, m] = startTime.split(":").map(Number);
+      const period = h >= 12 ? "PM" : "AM";
+      const displayH = h % 12 || 12;
+      return `${displayH}:${String(m).padStart(2, "0")} ${period}`;
+    });
+  }, [isTokenBased, slotDataRegular.timeSlots, slotDataToken.slotsByDay, dayOfWeek]);
+
+  const timeSlots = getTimeSlots();
+  const slotDurationMinutes = isTokenBased ? 0 : slotDataRegular.slotDurationMinutes;
 
   const handlePrevDay = useCallback(() => {
     const d = new Date(`${anchorDate}T00:00:00`);
@@ -487,9 +834,14 @@ function DayView({ doctor, anchorDate, onDateChange }) {
   }, [handlePrevDay, handleNextDay]);
 
   const slotMap = useMemo(() => {
-    return buildSlotMap(appts, timeSlots, slotDurationMinutes);
+    if (isTokenBased) {
+      const daySlots = slotDataToken.slotsByDay[dayOfWeek] || [];
+      return buildTokenSlotMap(appts, timeSlots, daySlots);
+    } else {
+      return buildSlotMap(appts, timeSlots, slotDurationMinutes);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appts, timeSlots, slotDurationMinutes]);
+  }, [appts, timeSlots, slotDurationMinutes, slotDataToken.slotsByDay, dayOfWeek, isTokenBased]);
 
   if (loading || slotsLoading) {
     return (
@@ -789,6 +1141,8 @@ export default function SchedulePage() {
   const [doctorFilter, setDoctorFilter]         = useState(null);
   const [viewMode, setViewMode]                 = useState("week");
   const [viewModeDropdownOpen, setViewModeDropdownOpen] = useState(false);
+  const [isTokenBased, setIsTokenBased]         = useState(false);
+  const [clinicLoading, setClinicLoading]       = useState(true);
   const [selectedDate, setSelectedDate]         = useState(
     () => {
       const year = new Date().getFullYear();
@@ -798,6 +1152,28 @@ export default function SchedulePage() {
     }
   );
   const viewModeDropdownRef = useRef(null);
+
+  // Fetch clinic settings to determine booking model
+  useEffect(() => {
+    (async () => {
+      try {
+        const clinicId = localStorage.getItem("auvia_clinic_id");
+        if (!clinicId) {
+          setIsTokenBased(false);
+          setClinicLoading(false);
+          return;
+        }
+        const result = await clinicsApi.getIsSlotNeeded(clinicId);
+        // is_slots_needed = true → slot-based, false → token-based
+        setIsTokenBased(!result.is_slots_needed);
+      } catch (err) {
+        console.error("Failed to fetch clinic settings, defaulting to slot-based:", err);
+        setIsTokenBased(false);
+      } finally {
+        setClinicLoading(false);
+      }
+    })();
+  }, []);
 
   const { doctors, appointmentMap, loading, error, refresh, updateStatus } =
     useClinicSchedule(selectedDate);
@@ -983,13 +1359,14 @@ export default function SchedulePage() {
                   selectedDoctor && (
                     <>
                       {viewMode === "week" && (
-                        <WeekView doctor={selectedDoctor} anchorDate={selectedDate} />
+                        <WeekView doctor={selectedDoctor} anchorDate={selectedDate} isTokenBased={isTokenBased} />
                       )}
                       {viewMode === "day" && (
                         <DayView
                           doctor={selectedDoctor}
                           anchorDate={selectedDate}
                           onDateChange={setSelectedDate}
+                          isTokenBased={isTokenBased}
                         />
                       )}
                       {viewMode === "month" && (
