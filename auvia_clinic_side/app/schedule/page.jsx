@@ -793,14 +793,22 @@ function DayView({ doctor, anchorDate, onDateChange, isTokenBased }) {
       return slotDataRegular.timeSlots || [];
     }
 
-    // For token system, get slots for the current day of week
-    const daySlots = slotDataToken.slotsByDay[dayOfWeek] || [];
-    return daySlots.map(slot => {
-      const startTime = slot.start_time.slice(0, 5); // "HH:MM"
+    // Helper: Convert HH:MM:SS to 12-hour format label
+    const timeToLabel = (timeStr) => {
+      if (!timeStr) return "";
+      const startTime = timeStr.slice(0, 5); // "HH:MM"
       const [h, m] = startTime.split(":").map(Number);
       const period = h >= 12 ? "PM" : "AM";
       const displayH = h % 12 || 12;
       return `${displayH}:${String(m).padStart(2, "0")} ${period}`;
+    };
+
+    // For token system, get slots for the current day of week
+    const daySlots = slotDataToken.slotsByDay[dayOfWeek] || [];
+    return daySlots.map(slot => {
+      const startLabel = timeToLabel(slot.start_time);
+      const endLabel = timeToLabel(slot.end_time);
+      return `${startLabel} - ${endLabel}`;
     });
   }, [isTokenBased, slotDataRegular.timeSlots, slotDataToken.slotsByDay, dayOfWeek]);
 
@@ -901,12 +909,13 @@ function DayView({ doctor, anchorDate, onDateChange, isTokenBased }) {
           {timeSlots.map((slot, idx) => (
             <div
               key={slot}
-              className="appointment-slot"
+              className={isTokenBased ? "" : "appointment-slot"}
               style={{
                 display: "grid",
                 gridTemplateColumns: "80px 1fr",
                 borderBottom: "1px solid #f4f6f8",
                 backgroundColor: idx % 2 === 0 ? "#ffffff" : "#fafbfc",
+                minHeight: isTokenBased ? "80px" : "auto",
               }}
             >
               {/* Time label cell */}
@@ -914,7 +923,7 @@ function DayView({ doctor, anchorDate, onDateChange, isTokenBased }) {
                 className="flex items-center justify-center border-r border-slate-100"
                 style={{ paddingLeft: "4px", paddingRight: "4px" }}
               >
-                <span className="text-[10px] font-semibold text-slate-400 tabular-nums leading-none tracking-tight">
+                <span className="text-[10px] font-semibold text-slate-400 text-center leading-tight">
                   {slot}
                 </span>
               </div>
@@ -924,13 +933,58 @@ function DayView({ doctor, anchorDate, onDateChange, isTokenBased }) {
                 className="relative"
                 style={{
                   backgroundColor: isToday ? "rgba(16,185,129,0.03)" : "transparent",
+                  ...(isTokenBased ? {
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "6px",
+                    padding: "8px",
+                  } : {})
                 }}
               >
-                <SlotCell
-                  appts={slotMap[slot] ?? []}
-                  onStatusChange={(id, status) => appointmentsApi.updateStatus(id, status)}
-                  slotCardHeightClass="appointment-slot"
-                />
+                {isTokenBased ? (
+                  (slotMap[slot] ?? []).map((appt) => {
+                    const statusColorMap = {
+                      confirmed: { bg: "#f0f9ff", border: "#0ea5e9", text: "#075985" },
+                      pending: { bg: "#fffbeb", border: "#f59e0b", text: "#92400e" },
+                      completed: { bg: "#f0fdf4", border: "#059669", text: "#065f46" },
+                      cancelled: { bg: "#fef2f2", border: "#dc2626", text: "#7f1d1d" },
+                      no_show: { bg: "#fff7ed", border: "#f97316", text: "#7c2d12" },
+                      rescheduled: { bg: "#faf5ff", border: "#a855f7", text: "#5b21b6" },
+                    };
+                    const colors = statusColorMap[appt.status] || {
+                      bg: "#ffffff", border: "#cbd5e1", text: "#1e293b",
+                    };
+
+                    return (
+                      <div
+                        key={appt.id}
+                        className="border-l-4 rounded-md shadow-sm hover:shadow-md transition-all cursor-pointer flex items-center justify-between"
+                        style={{
+                          backgroundColor: colors.bg,
+                          borderLeftColor: colors.border,
+                          padding: "8px 12px",
+                          color: colors.text,
+                        }}
+                      >
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-sm">{appt.patient_name}</span>
+                          <span className="text-xs opacity-80">{appt.reason || "—"}</span>
+                        </div>
+                        {appt.token_number && (
+                          <div className="font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded">
+                            Token #{appt.token_number}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <SlotCell
+                    appts={slotMap[slot] ?? []}
+                    onStatusChange={(id, status) => appointmentsApi.updateStatus(id, status)}
+                    slotCardHeightClass="appointment-slot"
+                  />
+                )}
               </div>
             </div>
           ))}

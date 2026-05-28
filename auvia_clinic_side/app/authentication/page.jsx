@@ -257,6 +257,7 @@ export default function AuthenticationPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          clinicName: clinic.trim(),
           username: username.trim().toLowerCase(),
           password: password.trim(),
         }),
@@ -315,7 +316,7 @@ export default function AuthenticationPage() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Clinic — kept as a UX hint but not sent to the API */}
+            {/* Clinic */}
             <div className="space-y-2">
               <label className="text-[11px] font-semibold text-slate-600">
                 Select Your Clinic
