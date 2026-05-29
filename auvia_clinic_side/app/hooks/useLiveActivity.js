@@ -27,8 +27,13 @@ export function useLiveActivity() {
         wsRef.current.close();
         wsRef.current = null;
       }
-      const proto  = window.location.protocol === "https:" ? "wss" : "ws";
+      
       const wsHost = process.env.NEXT_PUBLIC_WS_HOST || window.location.host;
+      // Render enforcing secure WebSockets means we must use 'wss' if connecting to a Render host, 
+      // even if the local frontend is on 'http:'.
+      let proto = window.location.protocol === "https:" ? "wss" : "ws";
+      if (wsHost.includes("onrender.com")) proto = "wss";
+      
       const ws     = new WebSocket(`${proto}://${wsHost}/ws/activity`);
       wsRef.current = ws;
 
