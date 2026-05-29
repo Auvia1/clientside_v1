@@ -341,7 +341,7 @@ import { useState, useEffect } from "react";
 import { Loader2, Plus } from "lucide-react";
 import { Button } from "./ui/button";
 import { appointmentsApi, doctorsApi } from "../lib/api";
-import { useDoctors, useSlots, useClinicSettings } from "../hooks/useSchedule";
+import { useDoctors, useSlots, useClinicSettings, useTokenSystemSlots } from "../hooks/useSchedule";
 
 export default function NewAppointmentDialog({ onBooked, className }) {
   const [open, setOpen]             = useState(false);
@@ -404,25 +404,35 @@ export default function NewAppointmentDialog({ onBooked, className }) {
   const slotDuration = getSlotDurationForDate();
 
   const { slots, loading: slotsLoading } = useSlots(form.doctor_id, form.appointment_date);
+  const { slotsByDay, loading: tokenSlotsLoading } = useTokenSystemSlots(form.doctor_id, form.appointment_date);
 
   // Filter slots based on clinic booking model
   // If slot-based: show only available slots
-  // If token-based: show all slots
+  // If token-based: show slots from slot_for_token_system table for the selected day of week
   const availableSlots = isSlotsBased
     ? slots.filter((s) => s.available)
-    : slots;
+    : (slotsByDay && form.appointment_date 
+        ? slotsByDay[new Date(form.appointment_date).getDay()] || [] 
+        : []);
 
   function set(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
   }
 
-  function selectSlot(time) {
-    const [h, m]   = time.split(":").map(Number);
-    const endTotal = h * 60 + m + slotDuration;
-    const eh       = Math.floor(endTotal / 60);
-    const em       = endTotal % 60;
-    set("start_time", time);
-    set("end_time", `${String(eh).padStart(2, "0")}:${String(em).padStart(2, "0")}:00`);
+  function selectSlot(slotData) {
+    if (isSlotsBased) {
+      const time = typeof slotData === 'string' ? slotData : slotData.time;
+      const [h, m]   = time.split(":").map(Number);
+      const endTotal = h * 60 + m + slotDuration;
+      const eh       = Math.floor(endTotal / 60);
+      const em       = endTotal % 60;
+      set("start_time", time);
+      set("end_time", `${String(eh).padStart(2, "0")}:${String(em).padStart(2, "0")}:00`);
+    } else {
+      // Token-based: slotData is a slot_for_token_system object
+      set("start_time", slotData.start_time);
+      set("end_time", slotData.end_time);
+    }
     setStep(3);
   }
 
@@ -614,9 +624,9 @@ export default function NewAppointmentDialog({ onBooked, className }) {
               <p className="text-xs text-slate-400 mb-4">
                 {isSlotsBased
                   ? `Each slot is ${slotDuration} minutes`
-                  : `Each slot is ${slotDuration} minutes (token-based queue system)`}
+                  : `Token-based queue system`}
               </p>
-              {slotsLoading ? (
+              {slotsLoading || tokenSlotsLoading ? (
                 <div className="flex items-center justify-center py-10 gap-2 text-slate-400">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   <span className="text-sm">Loading slots…</span>
@@ -630,20 +640,20 @@ export default function NewAppointmentDialog({ onBooked, className }) {
                   </button>
                 </div>
               ) : (
-                <div className="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto pr-1">
+                <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1">
                   {availableSlots.map((slot) => (
                     <button
-                      key={slot.time}
-                      onClick={() => selectSlot(slot.time)}
+                      key={isSlotsBased ? slot.time : slot.id}
+                      onClick={() => selectSlot(isSlotsBased ? slot.time : slot)}
                       className={`rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors ${
                         isSlotsBased
                           ? "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 hover:border-emerald-400"
-                          : slot.available
-                            ? "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 hover:border-emerald-400"
-                            : "border-slate-300 bg-slate-100 text-slate-600 hover:bg-slate-150 hover:border-slate-400 opacity-75"
+                          : "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 hover:border-emerald-400"
                       }`}
                     >
-                      {formatSlotTime(slot.time)}
+                      {isSlotsBased
+                        ? formatSlotTime(slot.time)
+                        : `${formatSlotTime(slot.start_time)} - ${formatSlotTime(slot.end_time)}`}
                     </button>
                   ))}
                 </div>
