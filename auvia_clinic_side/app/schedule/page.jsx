@@ -9,6 +9,7 @@ import Navbar from "../components/Navbar";
 import Sidebar from "../components/Sidebar";
 import NewAppointmentDialog from "../components/NewAppointmentDialog";
 import PatientDetailsDialog from "../components/PatientDetailsDialog";
+import AppointmentDetailsDialog from "../components/AppointmentDetailsDialog";
 import LiveActivityPanel from "../components/LiveActivityPanel";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -21,7 +22,7 @@ import {
 } from "react-icons/fi";
 import { useClinicSchedule, usePatientSearch, useDoctorScheduleSlots, useTokenSystemSlots } from "../hooks/useSchedule";
 import { useLiveActivity } from "../hooks/useLiveActivity";
-import { appointmentsApi, doctorsApi, clinicsApi } from "../lib/api";
+import { appointmentsApi, doctorsApi, clinicsApi, patientsApi } from "../lib/api";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -243,7 +244,7 @@ function useWeekSchedule(doctorId, anchorDate) {
 
 // ─── AppointmentCell ──────────────────────────────────────────────────────────
 
-function AppointmentCell({ appt, onStatusChange, slotCardHeightClass = "appointment-slot", isTokenBased = false }) {
+function AppointmentCell({ appt, onStatusChange, slotCardHeightClass = "appointment-slot", isTokenBased = false, onClick }) {
   const [updating, setUpdating]       = useState(false);
   const [localStatus, setLocalStatus] = useState(appt.status);
 
@@ -285,6 +286,7 @@ function AppointmentCell({ appt, onStatusChange, slotCardHeightClass = "appointm
           padding: "8px 10px",
           margin: "2px 3px 2px 0",
         }}
+        onClick={() => onClick && onClick(appt)}
       >
         <p className="text-[13px] font-semibold truncate leading-tight" style={{ color: colors.text }}>
           {appt.patient_name || "Unknown"}
@@ -314,6 +316,7 @@ function AppointmentCell({ appt, onStatusChange, slotCardHeightClass = "appointm
         padding: "6px 8px 6px 10px",
         margin: "2px 3px 2px 0",
       }}
+      onClick={() => onClick && onClick(appt)}
     >
       <div className="min-w-0 flex-1">
         <p className="text-[12px] font-bold truncate leading-tight" style={{ color: colors.text }}>
@@ -340,7 +343,7 @@ function AppointmentCell({ appt, onStatusChange, slotCardHeightClass = "appointm
 
 // ─── SlotCell ─────────────────────────────────────────────────────────────────
 
-function SlotCell({ appts = [], onStatusChange, slotCardHeightClass = "appointment-slot", isTokenBased = false }) {
+function SlotCell({ appts = [], onStatusChange, slotCardHeightClass = "appointment-slot", isTokenBased = false, onAppointmentClick }) {
   if (appts.length === 0) {
     return (
       <div
@@ -356,6 +359,7 @@ function SlotCell({ appts = [], onStatusChange, slotCardHeightClass = "appointme
         onStatusChange={onStatusChange}
         slotCardHeightClass={slotCardHeightClass}
         isTokenBased={isTokenBased}
+        onClick={onAppointmentClick}
       />
       {appts.length > 1 && (
         <div className="absolute bottom-0 inset-x-0 z-10 flex items-center justify-center bg-white/90 backdrop-blur-sm py-0.5 border-t border-slate-100 rounded-b-lg">
@@ -370,7 +374,7 @@ function SlotCell({ appts = [], onStatusChange, slotCardHeightClass = "appointme
 
 // ─── WeekView ─────────────────────────────────────────────────────────────────
 
-function WeekView({ doctor, anchorDate, isTokenBased }) {
+function WeekView({ doctor, anchorDate, isTokenBased, onAppointmentClick }) {
   const { weekData, loading } = useWeekSchedule(doctor.id, anchorDate);
   const slotDataRegular = useDoctorScheduleSlots(doctor.id);
   const slotDataToken = useTokenSystemSlots(doctor.id, anchorDate);
@@ -648,6 +652,7 @@ function WeekView({ doctor, anchorDate, isTokenBased }) {
                               whiteSpace: "nowrap",
                             }}
                             title={`${appt.patient_name}${appt.token_number ? ` (Token #${appt.token_number})` : ""}`}
+                            onClick={() => onAppointmentClick && onAppointmentClick(appt)}
                           >
                             {appt.patient_name}
                             {appt.token_number && (
@@ -712,6 +717,7 @@ function WeekView({ doctor, anchorDate, isTokenBased }) {
                         onStatusChange={(id, status) => appointmentsApi.updateStatus(id, status)}
                         slotCardHeightClass="appointment-slot"
                         isTokenBased={false}
+                        onAppointmentClick={onAppointmentClick}
                       />
                     </div>
                   );
@@ -767,6 +773,7 @@ function WeekView({ doctor, anchorDate, isTokenBased }) {
                         onStatusChange={(id, status) => appointmentsApi.updateStatus(id, status)}
                         slotCardHeightClass="appointment-slot"
                         isTokenBased={false}
+                        onAppointmentClick={onAppointmentClick}
                       />
                     </div>
                   );
@@ -782,7 +789,7 @@ function WeekView({ doctor, anchorDate, isTokenBased }) {
 
 // ─── DayView ──────────────────────────────────────────────────────────────────
 
-function DayView({ doctor, anchorDate, onDateChange, isTokenBased }) {
+function DayView({ doctor, anchorDate, onDateChange, isTokenBased, onAppointmentClick }) {
   const { weekData, loading } = useWeekSchedule(doctor.id, anchorDate);
   const ymd = toYMD(new Date(`${anchorDate}T00:00:00`));
   const appts = weekData[ymd] || [];
@@ -972,6 +979,7 @@ function DayView({ doctor, anchorDate, onDateChange, isTokenBased }) {
                           padding: "8px 12px",
                           color: colors.text,
                         }}
+                        onClick={() => onAppointmentClick && onAppointmentClick(appt)}
                       >
                         <div className="flex flex-col">
                           <span className="font-semibold text-sm">{appt.patient_name}</span>
@@ -990,6 +998,7 @@ function DayView({ doctor, anchorDate, onDateChange, isTokenBased }) {
                     appts={slotMap[slot] ?? []}
                     onStatusChange={(id, status) => appointmentsApi.updateStatus(id, status)}
                     slotCardHeightClass="appointment-slot"
+                    onAppointmentClick={onAppointmentClick}
                   />
                 )}
               </div>
@@ -1003,7 +1012,7 @@ function DayView({ doctor, anchorDate, onDateChange, isTokenBased }) {
 
 // ─── MonthView ────────────────────────────────────────────────────────────────
 
-function MonthView({ doctor, anchorDate }) {
+function MonthView({ doctor, anchorDate, onAppointmentClick }) {
   const year = new Date(`${anchorDate}T00:00:00`).getFullYear();
   const month = new Date(`${anchorDate}T00:00:00`).getMonth();
   const firstDay = new Date(year, month, 1);
@@ -1095,8 +1104,12 @@ function MonthView({ doctor, anchorDate }) {
                 {appts.slice(0, 2).map((appt) => (
                   <div
                     key={appt.id}
-                    className="truncate px-1.5 py-1 rounded bg-blue-100 text-blue-700 font-semibold"
+                    className="truncate px-1.5 py-1 rounded bg-blue-100 text-blue-700 font-semibold cursor-pointer hover:bg-blue-200"
                     title={appt.patient_name}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (onAppointmentClick) onAppointmentClick(appt);
+                    }}
                   >
                     {appt.patient_name?.split(" ")[0]}
                   </div>
@@ -1213,6 +1226,36 @@ export default function SchedulePage() {
     }
   );
   const viewModeDropdownRef = useRef(null);
+
+  const [calendarSelectedPatient, setCalendarSelectedPatient] = useState(null);
+  const [isCalendarPatientDialogOpen, setIsCalendarPatientDialogOpen] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [isAppointmentDialogOpen, setIsAppointmentDialogOpen] = useState(false);
+
+  const handleAppointmentClick = (appt) => {
+    if (!appt) return;
+    setSelectedAppointment(appt);
+    setIsAppointmentDialogOpen(true);
+  };
+
+  const handleViewPatient = async (patientId) => {
+    if (!patientId) return;
+    setIsAppointmentDialogOpen(false); // Close appointment dialog
+    try {
+      const fullPatient = await patientsApi.get(patientId);
+      setCalendarSelectedPatient(fullPatient);
+      setIsCalendarPatientDialogOpen(true);
+    } catch (err) {
+      console.error("Failed to fetch patient details:", err);
+      // Fallback if fetch fails
+      setCalendarSelectedPatient({
+        id: patientId,
+        name: "Unknown Patient",
+        phone: "N/A"
+      });
+      setIsCalendarPatientDialogOpen(true);
+    }
+  };
 
   // Fetch clinic settings to determine booking model
   useEffect(() => {
@@ -1421,7 +1464,7 @@ export default function SchedulePage() {
                   selectedDoctor && (
                     <>
                       {viewMode === "week" && (
-                        <WeekView doctor={selectedDoctor} anchorDate={selectedDate} isTokenBased={isTokenBased} />
+                        <WeekView doctor={selectedDoctor} anchorDate={selectedDate} isTokenBased={isTokenBased} onAppointmentClick={handleAppointmentClick} />
                       )}
                       {viewMode === "day" && (
                         <DayView
@@ -1429,10 +1472,11 @@ export default function SchedulePage() {
                           anchorDate={selectedDate}
                           onDateChange={setSelectedDate}
                           isTokenBased={isTokenBased}
+                          onAppointmentClick={handleAppointmentClick}
                         />
                       )}
                       {viewMode === "month" && (
-                        <MonthView doctor={selectedDoctor} anchorDate={selectedDate} />
+                        <MonthView doctor={selectedDoctor} anchorDate={selectedDate} onAppointmentClick={handleAppointmentClick} />
                       )}
                     </>
                   )
@@ -1447,6 +1491,17 @@ export default function SchedulePage() {
           </div>
         </main>
       </div>
+      <AppointmentDetailsDialog
+        open={isAppointmentDialogOpen}
+        onOpenChange={setIsAppointmentDialogOpen}
+        appointment={selectedAppointment}
+        onViewPatient={handleViewPatient}
+      />
+      <PatientDetailsDialog
+        open={isCalendarPatientDialogOpen}
+        onOpenChange={setIsCalendarPatientDialogOpen}
+        patient={calendarSelectedPatient}
+      />
     </div>
   );
 }
