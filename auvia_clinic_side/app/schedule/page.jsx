@@ -404,6 +404,23 @@ function WeekView({ doctor, anchorDate, isTokenBased }) {
 
   const tokenSlotsByDay = getTokenSlotsByDay();
 
+  const uniqueTokenSlots = useMemo(() => {
+    if (!isTokenBased) return [];
+    const unique = [];
+    const seen = new Set();
+    for (let dow = 0; dow < 7; dow++) {
+      const slots = tokenSlotsByDay[dow] || [];
+      for (const slot of slots) {
+        const key = `${slot.start_time}-${slot.end_time}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          unique.push({ start_time: slot.start_time, end_time: slot.end_time });
+        }
+      }
+    }
+    return unique.sort((a, b) => a.start_time.localeCompare(b.start_time));
+  }, [isTokenBased, tokenSlotsByDay]);
+
   // Build slot maps for token system
   const slotMaps = useMemo(() => {
     const maps = {};
@@ -532,122 +549,112 @@ function WeekView({ doctor, anchorDate, isTokenBased }) {
       {/* ── Token System: Display each slot as a separate row ── */}
       {isTokenBased && (
         <div className="relative" style={{ minWidth: "max-content" }}>
-          {weekDays.map((d) => {
-            const ymd = toYMD(d);
-            const dayOfWeek = d.getDay();
-            const daySlots = tokenSlotsByDay[dayOfWeek] || [];
+          {uniqueTokenSlots.map((uniqueSlot, slotIdx) => {
+            const startLabel = timeToLabel(uniqueSlot.start_time);
+            const endLabel = timeToLabel(uniqueSlot.end_time);
+            const slotLabel = `${startLabel} - ${endLabel}`;
 
             return (
-              <div key={ymd}>
-                {daySlots.map((slot, slotIdx) => {
-                  const startLabel = timeToLabel(slot.start_time);
-                  const endLabel = timeToLabel(slot.end_time);
-                  const slotLabel = `${startLabel} - ${endLabel}`;
+              <div
+                key={`${uniqueSlot.start_time}-${uniqueSlot.end_time}`}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "80px repeat(7, 140px)",
+                  borderBottom: "1px solid #f4f6f8",
+                  backgroundColor: slotIdx % 2 === 0 ? "#ffffff" : "#fafbfc",
+                  minWidth: "max-content",
+                }}
+              >
+                {/* Time slot label */}
+                <div
+                  className="flex items-center justify-center border-r border-slate-100"
+                  style={{ paddingLeft: "4px", paddingRight: "4px", minHeight: "120px" }}
+                >
+                  <span className="text-[9px] font-semibold text-slate-600 text-center leading-tight">
+                    {slotLabel}
+                  </span>
+                </div>
+
+                {/* Day columns */}
+                {weekDays.map((dayToDisplay) => {
+                  const displayYmd = toYMD(dayToDisplay);
+                  const isToday = displayYmd === todayStr;
+                  const dayOfWeekToDisplay = dayToDisplay.getDay();
+                  const daySlotForDisplay = tokenSlotsByDay[dayOfWeekToDisplay] || [];
+
+                  // Find this specific slot in the day's slots
+                  const currentSlot = daySlotForDisplay.find(s => s.start_time === uniqueSlot.start_time && s.end_time === uniqueSlot.end_time);
+
+                  if (!currentSlot) {
+                    // This slot doesn't exist for this day
+                    return (
+                      <div
+                        key={`${displayYmd}-empty`}
+                        style={{
+                          backgroundColor: isToday ? "rgba(16,185,129,0.03)" : "transparent",
+                          borderRight: "1px solid #f1f5f9",
+                          minHeight: "120px",
+                        }}
+                      />
+                    );
+                  }
+
+                  // Get appointments for this day in this slot
+                  const appts = slotMaps[displayYmd]?.[currentSlot.id] || [];
 
                   return (
                     <div
-                      key={`${slot.id}-${slotIdx}`}
+                      key={`${displayYmd}-${currentSlot.id}`}
                       style={{
-                        display: "grid",
-                        gridTemplateColumns: "80px repeat(7, 140px)",
-                        borderBottom: "1px solid #f4f6f8",
-                        backgroundColor: slotIdx % 2 === 0 ? "#ffffff" : "#fafbfc",
-                        minWidth: "max-content",
+                        backgroundColor: isToday ? "rgba(16,185,129,0.03)" : "transparent",
+                        borderRight: "1px solid #f1f5f9",
+                        minHeight: "120px",
+                        padding: "4px 3px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "4px",
+                        overflow: "auto",
                       }}
                     >
-                      {/* Time slot label */}
-                      <div
-                        className="flex items-center justify-center border-r border-slate-100"
-                        style={{ paddingLeft: "4px", paddingRight: "4px", minHeight: "80px" }}
-                      >
-                        <span className="text-[9px] font-semibold text-slate-600 text-center leading-tight">
-                          {slotLabel}
-                        </span>
-                      </div>
+                      {appts.map((appt) => {
+                        const statusColorMap = {
+                          confirmed: { bg: "#f0f9ff", border: "#0ea5e9", text: "#075985" },
+                          pending: { bg: "#fffbeb", border: "#f59e0b", text: "#92400e" },
+                          completed: { bg: "#f0fdf4", border: "#059669", text: "#065f46" },
+                          cancelled: { bg: "#fef2f2", border: "#dc2626", text: "#7f1d1d" },
+                          no_show: { bg: "#fff7ed", border: "#f97316", text: "#7c2d12" },
+                          rescheduled: { bg: "#faf5ff", border: "#a855f7", text: "#5b21b6" },
+                        };
 
-                      {/* Day columns */}
-                      {weekDays.map((dayToDisplay) => {
-                        const displayYmd = toYMD(dayToDisplay);
-                        const isToday = displayYmd === todayStr;
-                        const dayOfWeekToDisplay = dayToDisplay.getDay();
-                        const daySlotForDisplay = tokenSlotsByDay[dayOfWeekToDisplay] || [];
-
-                        // Find this specific slot in the day's slots
-                        const currentSlot = daySlotForDisplay.find(s => s.id === slot.id);
-
-                        if (!currentSlot) {
-                          // This slot doesn't exist for this day
-                          return (
-                            <div
-                              key={`${displayYmd}-empty`}
-                              style={{
-                                backgroundColor: isToday ? "rgba(16,185,129,0.03)" : "transparent",
-                                borderRight: "1px solid #f1f5f9",
-                                minHeight: "80px",
-                              }}
-                            />
-                          );
-                        }
-
-                        // Get appointments for this day in this slot
-                        const appts = slotMaps[displayYmd]?.[currentSlot.id] || [];
+                        const colors = statusColorMap[appt.status] || {
+                          bg: "#ffffff",
+                          border: "#cbd5e1",
+                          text: "#1e293b",
+                        };
 
                         return (
                           <div
-                            key={`${displayYmd}-${currentSlot.id}`}
+                            key={appt.id}
+                            className="border-l-4 rounded-md shadow-sm hover:shadow-md transition-all cursor-pointer text-center"
                             style={{
-                              backgroundColor: isToday ? "rgba(16,185,129,0.03)" : "transparent",
-                              borderRight: "1px solid #f1f5f9",
-                              minHeight: "80px",
-                              padding: "4px 3px",
-                              display: "flex",
-                              flexDirection: "column",
-                              gap: "4px",
-                              overflow: "auto",
+                              backgroundColor: colors.bg,
+                              borderLeftColor: colors.border,
+                              padding: "4px 6px",
+                              fontSize: "10px",
+                              fontWeight: "600",
+                              color: colors.text,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
                             }}
+                            title={`${appt.patient_name}${appt.token_number ? ` (Token #${appt.token_number})` : ""}`}
                           >
-                            {appts.map((appt) => {
-                              const statusColorMap = {
-                                confirmed: { bg: "#f0f9ff", border: "#0ea5e9", text: "#075985" },
-                                pending: { bg: "#fffbeb", border: "#f59e0b", text: "#92400e" },
-                                completed: { bg: "#f0fdf4", border: "#059669", text: "#065f46" },
-                                cancelled: { bg: "#fef2f2", border: "#dc2626", text: "#7f1d1d" },
-                                no_show: { bg: "#fff7ed", border: "#f97316", text: "#7c2d12" },
-                                rescheduled: { bg: "#faf5ff", border: "#a855f7", text: "#5b21b6" },
-                              };
-
-                              const colors = statusColorMap[appt.status] || {
-                                bg: "#ffffff",
-                                border: "#cbd5e1",
-                                text: "#1e293b",
-                              };
-
-                              return (
-                                <div
-                                  key={appt.id}
-                                  className="border-l-4 rounded-md shadow-sm hover:shadow-md transition-all cursor-pointer text-center"
-                                  style={{
-                                    backgroundColor: colors.bg,
-                                    borderLeftColor: colors.border,
-                                    padding: "4px 6px",
-                                    fontSize: "10px",
-                                    fontWeight: "600",
-                                    color: colors.text,
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    whiteSpace: "nowrap",
-                                  }}
-                                  title={`${appt.patient_name}${appt.token_number ? ` (Token #${appt.token_number})` : ""}`}
-                                >
-                                  {appt.patient_name}
-                                  {appt.token_number && (
-                                    <div style={{ fontSize: "8px", fontWeight: "700", color: "#b45309" }}>
-                                      #{appt.token_number}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
+                            {appt.patient_name}
+                            {appt.token_number && (
+                              <div style={{ fontSize: "8px", fontWeight: "700", color: "#b45309" }}>
+                                #{appt.token_number}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -915,7 +922,7 @@ function DayView({ doctor, anchorDate, onDateChange, isTokenBased }) {
                 gridTemplateColumns: "80px 1fr",
                 borderBottom: "1px solid #f4f6f8",
                 backgroundColor: idx % 2 === 0 ? "#ffffff" : "#fafbfc",
-                minHeight: isTokenBased ? "80px" : "auto",
+                minHeight: isTokenBased ? "120px" : "auto",
               }}
             >
               {/* Time label cell */}
@@ -1219,7 +1226,8 @@ export default function SchedulePage() {
         }
         const result = await clinicsApi.getIsSlotNeeded(clinicId);
         // is_slots_needed = true → slot-based, false → token-based
-        setIsTokenBased(!result.is_slots_needed);
+        const isToken = !result.is_slots_needed;
+        setIsTokenBased(isToken);
       } catch (err) {
         console.error("Failed to fetch clinic settings, defaulting to slot-based:", err);
         setIsTokenBased(false);
