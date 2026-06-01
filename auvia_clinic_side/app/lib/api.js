@@ -395,3 +395,74 @@ export const slotsApi = {
       method: "DELETE",
     }),
 };
+
+// ─── WhatsApp (calls local Next.js server route, NOT the backend) ─────────────
+export const whatsappApi = {
+  /**
+   * Low-level: send any approved Meta template.
+   */
+  sendTemplate: async ({ phone_number, template_name, language_code = "en", body_variables = [], button_variable }) => {
+    const res = await fetch("/api/whatsapp/send-template", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone_number, template_name, language_code, body_variables, button_variable }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || "Failed to send WhatsApp template");
+    }
+    return data;
+  },
+
+  /**
+   * High-level helper: sends the "appointment_confirmation" template
+   * and then the "the_payment_link_message" template with a fake payment link.
+   */
+  sendConfirmationAndPayment: async ({
+    patient_name,
+    patient_phone,
+    doctor_name,
+    reason,
+    appointment_time,
+    appointment_date,
+    consultation_fee = "500",
+    hospital_name = "Mithra Hospitals",
+  }) => {
+    const results = { confirmation: null, payment: null };
+
+    // 1️⃣ Appointment Confirmation template
+    //    Variables: {{1}} Name, {{2}} Phone, {{3}} Doctor, {{4}} Reason, {{5}} Time
+    results.confirmation = await whatsappApi.sendTemplate({
+      phone_number: patient_phone,
+      template_name: "appointment_confirmation",
+      language_code: "en",
+      body_variables: [
+        patient_name,
+        patient_phone,
+        doctor_name,
+        reason || "General Consultation",
+        appointment_time,
+      ],
+    });
+
+    // 2️⃣ Payment Link template (fake link for demo)
+    //    Variables: {{1}} Hospital, {{2}} Name, {{3}} Time, {{4}} Date, {{5}} Fee
+    //    Button variable: short Razorpay ID
+    const fakePaymentId = `pay_demo_${Date.now()}`;
+    results.payment = await whatsappApi.sendTemplate({
+      phone_number: patient_phone,
+      template_name: "the_payment_link_message",
+      language_code: "en",
+      body_variables: [
+        hospital_name,
+        patient_name,
+        appointment_time,
+        appointment_date,
+        String(consultation_fee),
+      ],
+      button_variable: fakePaymentId,
+    });
+
+    return results;
+  },
+};

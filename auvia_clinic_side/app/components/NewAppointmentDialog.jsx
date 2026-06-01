@@ -340,7 +340,7 @@
 import { useState, useEffect } from "react";
 import { Loader2, Plus } from "lucide-react";
 import { Button } from "./ui/button";
-import { appointmentsApi, doctorsApi } from "../lib/api";
+import { appointmentsApi, doctorsApi, whatsappApi } from "../lib/api";
 import { useDoctors, useSlots, useClinicSettings, useTokenSystemSlots } from "../hooks/useSchedule";
 
 export default function NewAppointmentDialog({ onBooked, className }) {
@@ -455,6 +455,27 @@ export default function NewAppointmentDialog({ onBooked, className }) {
         reason:            form.reason,
         source:            "manual",
       });
+
+      // ── Send WhatsApp confirmation + payment link (fire-and-forget) ──
+      const apptDate = new Date(form.appointment_date);
+      const appointmentDateStr = apptDate.toLocaleDateString("en-IN", {
+        weekday: "long", year: "numeric", month: "long", day: "numeric",
+      });
+      const appointmentTimeStr = formatSlotTime(form.start_time);
+
+      whatsappApi.sendConfirmationAndPayment({
+        patient_name:     form.patient_name,
+        patient_phone:    form.patient_phone,
+        doctor_name:      selectedDoctor?.name || "Doctor",
+        reason:           form.reason,
+        appointment_time: appointmentTimeStr,
+        appointment_date: appointmentDateStr,
+      }).then(() => {
+        console.log("✅ WhatsApp confirmation & payment link sent");
+      }).catch((err) => {
+        console.error("⚠️ WhatsApp send failed (appointment still booked):", err);
+      });
+
       setSuccess(true);
       onBooked?.();
       setTimeout(() => {
