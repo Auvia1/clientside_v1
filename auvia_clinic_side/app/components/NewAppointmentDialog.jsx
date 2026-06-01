@@ -446,7 +446,7 @@ export default function NewAppointmentDialog({ onBooked, className }) {
     setError(null);
     try {
       // clinic_id is injected automatically inside appointmentsApi.book
-      await appointmentsApi.book({
+      const bookingResult = await appointmentsApi.book({
         patient_name:      form.patient_name,
         patient_phone:     form.patient_phone,
         doctor_id:         form.doctor_id,
@@ -470,6 +470,7 @@ export default function NewAppointmentDialog({ onBooked, className }) {
         reason:           form.reason,
         appointment_time: appointmentTimeStr,
         appointment_date: appointmentDateStr,
+        appointment_id:   bookingResult?.id || bookingResult?.appointment_id || "",
       }).then(() => {
         console.log("✅ WhatsApp confirmation & payment link sent");
       }).catch((err) => {
