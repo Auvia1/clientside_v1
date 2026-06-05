@@ -118,11 +118,12 @@ async function request(path, options = {}, retries = 3) {
       localStorage.removeItem("auvia_clinic_id");
       localStorage.removeItem("auvia_user");
       window.location.href = "/";
-      throw new Error(data.error || "Session expired. Please log in again.");
+      throw new Error(data?.error || "Session expired. Please log in again.");
     }
 
-    if (!res.ok || !data.success) {
-      throw new Error(data.error || data.message || `Request failed (${res.status})`);
+    if (!res.ok || !data?.success) {
+      const errorMsg = data?.error || data?.message || `Request failed (${res.status})`;
+      throw new Error(errorMsg);
     }
 
     return data.data;
@@ -138,7 +139,7 @@ export const appointmentsApi = {
   getSchedule: (date, doctorId, status) => {
     const params = new URLSearchParams({ date, clinic_id: getClinicId() });
     if (doctorId) params.set("doctor_id", doctorId);
-    if (status)   params.set("status", status);
+    if (status) params.set("status", status);
     return request(`/appointments/schedule?${params}`);
   },
 
@@ -490,4 +491,63 @@ export const whatsappApi = {
 
     return results;
   },
+};
+
+// ─── Credits ──────────────────────────────────────────────────────────────────
+export const creditsApi = {
+  getBalance: (clinicId) =>
+    request(`/credits/balance/${clinicId}`),
+
+  getSummary: (clinicId) =>
+    request(`/clinic/credits/summary/${clinicId}`),
+
+  getPackages: () =>
+    request(`/clinic/credits/packages`),
+
+  getTransactions: (clinicId, filters = {}) => {
+    const params = new URLSearchParams();
+    if (filters.type) params.set("type", filters.type);
+    if (filters.start_date) params.set("start_date", filters.start_date);
+    if (filters.end_date) params.set("end_date", filters.end_date);
+    if (filters.page) params.set("page", filters.page);
+    if (filters.limit) params.set("limit", filters.limit);
+    return request(`/credits/transactions/${clinicId}?${params}`);
+  },
+
+  getPayments: (clinicId, filters = {}) => {
+    const params = new URLSearchParams();
+    if (filters.status) params.set("status", filters.status);
+    if (filters.start_date) params.set("start_date", filters.start_date);
+    if (filters.end_date) params.set("end_date", filters.end_date);
+    if (filters.page) params.set("page", filters.page);
+    if (filters.limit) params.set("limit", filters.limit);
+    return request(`/credits/payments/${clinicId}?${params}`);
+  },
+
+  createOrder: (clinicId, packageId, customCredits) =>
+    request("/credits/create-order", {
+      method: "POST",
+      body: JSON.stringify({ clinic_id: clinicId, package_id: packageId, custom_credits: customCredits }),
+    }),
+
+  verifyPayment: (payload) =>
+    request("/credits/verify-payment", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+};
+
+// ─── Agent ────────────────────────────────────────────────────────────────────
+export const agentApi = {
+  checkCredits: (clinicId, requiredCredits) =>
+    request("/agent/check-credits", {
+      method: "POST",
+      body: JSON.stringify({ clinic_id: clinicId, required_credits: requiredCredits }),
+    }),
+
+  deductCredits: (clinicId, callId, durationMinutes) =>
+    request("/agent/deduct-credits", {
+      method: "POST",
+      body: JSON.stringify({ clinic_id: clinicId, call_id: callId, duration_minutes: durationMinutes }),
+    }),
 };

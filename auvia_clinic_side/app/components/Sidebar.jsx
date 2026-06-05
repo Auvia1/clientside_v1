@@ -226,14 +226,15 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { LayoutGrid, CalendarDays, PhoneCall, Menu, X, LogOut, TrendingUp, Users } from "lucide-react";
+import { LayoutGrid, CalendarDays, PhoneCall, Menu, X, LogOut, TrendingUp, Users, Coins } from "lucide-react";
 import { Badge } from "./ui/badge";
 
 const navItems = [
 	{ label: "Dashboard", href: "/dashboard", icon: LayoutGrid },
-	{ label: "Schedule",  href: "/schedule",  icon: CalendarDays },
-	{ label: "Patients",  href: "/view-all-patients", icon: Users },
-	{ label: "Earnings",  href: "/earnings",  icon: TrendingUp },
+	{ label: "Schedule", href: "/schedule", icon: CalendarDays },
+	{ label: "Patients", href: "/view-all-patients", icon: Users },
+	{ label: "Earnings", href: "/earnings", icon: TrendingUp },
+	{ label: "Buy Credits", href: "/credits", icon: Coins },
 ];
 
 const assistantItems = [
@@ -241,11 +242,11 @@ const assistantItems = [
 ];
 
 export default function Sidebar() {
-	const pathname   = usePathname();
-	const router     = useRouter();
+	const pathname = usePathname();
+	const router = useRouter();
 	const activePath = pathname === "/" ? "/dashboard" : pathname;
 
-	const [open,       setOpen]       = useState(false);
+	const [open, setOpen] = useState(false);
 	const [mobileOpen, setMobileOpen] = useState(false);
 
 	// ── Read user only on the client, after hydration ─────────────────────────
@@ -299,17 +300,16 @@ export default function Sidebar() {
 					</p>
 				)}
 				{navItems.map((item) => {
-					const Icon     = item.icon;
+					const Icon = item.icon;
 					const isActive = activePath === item.href;
 					return (
 						<Link
 							key={item.href}
 							href={item.href}
-							className={`flex items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-sm font-medium transition-colors ${
-								isActive
+							className={`flex items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-sm font-medium transition-colors ${isActive
 									? "bg-emerald-50 text-emerald-700"
 									: "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-							}`}
+								}`}
 						>
 							<Icon size={18} className="shrink-0" />
 							<motion.span
@@ -335,17 +335,16 @@ export default function Sidebar() {
 					</p>
 				)}
 				{assistantItems.map((item) => {
-					const Icon     = item.icon;
+					const Icon = item.icon;
 					const isActive = activePath === item.href;
 					return (
 						<Link
 							key={item.href}
 							href={item.href}
-							className={`flex items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-sm font-medium transition-colors ${
-								isActive
+							className={`flex items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-sm font-medium transition-colors ${isActive
 									? "bg-emerald-50 text-emerald-700"
 									: "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-							}`}
+								}`}
 						>
 							<Icon size={18} className="shrink-0" />
 							<motion.span

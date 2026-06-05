@@ -11,6 +11,7 @@ import Sidebar from "../components/Sidebar";
 import NewAppointmentDialog from "../components/NewAppointmentDialog";
 import DoctorDetailsCard from "../components/DoctorDetailsCard";
 import LiveActivityPanel from "../components/LiveActivityPanel";
+import CreditBalanceWidget from "../components/CreditBalanceWidget";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
@@ -350,6 +351,8 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
 
+              {/* ── Credit Balance Widget ── */}
+              <CreditBalanceWidget showBuyCTA={false} />
 
               {/* ── Live Activity ── */}
               <LiveActivityPanel />
