@@ -33,8 +33,8 @@ export default function CreditsPage() {
       id: "custom",
       name: "Custom Package",
       credits: 100,
-      price_inr: 100.0,
-      price_per_credit: 1.0,
+      price_inr: 500.0,
+      price_per_credit: 5.0,
       custom_credits: 100
     });
   };
@@ -107,7 +107,7 @@ export default function CreditsPage() {
                     />
                     <div className="flex justify-between mt-2 pt-2 border-t border-emerald-200/50">
                       <span className="text-sm text-slate-600">Total Price</span>
-                      <span className="font-semibold text-slate-900">₹{customCredits && !isNaN(parseInt(customCredits)) ? (parseInt(customCredits) * 1.0).toFixed(2) : "0.00"}</span>
+                      <span className="font-semibold text-slate-900">₹{customCredits && !isNaN(parseInt(customCredits)) ? (parseInt(customCredits) * 5.0).toFixed(2) : "0.00"}</span>
                     </div>
                   </div>
                   
@@ -119,8 +119,8 @@ export default function CreditsPage() {
                           id: "custom",
                           name: `Custom Package (${credits} credits)`,
                           credits: credits,
-                          price_inr: credits * 1.0,
-                          price_per_credit: 1.0,
+                          price_inr: credits * 5.0,
+                          price_per_credit: 5.0,
                           custom_credits: credits
                         });
                       }

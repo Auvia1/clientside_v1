@@ -140,11 +140,11 @@ export default function BuyCreditDialog({ isOpen, onClose, packageData }) {
                     </div>
                     <div className="flex justify-between border-t border-slate-200 pt-3">
                       <span className="text-sm text-slate-600">Amount</span>
-                      <span className="font-semibold text-slate-900">₹{(parseInt(customAmount || 0) * 1.0).toFixed(2)}</span>
+                      <span className="font-semibold text-slate-900">₹{(parseInt(customAmount || 0) * 5.0).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between border-t border-slate-200 pt-3">
                       <span className="text-sm text-slate-600">Price per credit</span>
-                      <span className="font-semibold text-slate-900">₹1.00</span>
+                      <span className="font-semibold text-slate-900">₹5.00</span>
                     </div>
                   </>
                 ) : (
