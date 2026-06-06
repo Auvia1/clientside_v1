@@ -12,6 +12,10 @@ export async function POST(request) {
       patient_name,
       patient_phone,
       appointment_id,
+      doctor_name,
+      reason,
+      appointment_time,
+      appointment_date,
       description = "Consultation Fee — Mithra Hospitals",
     } = body;
 
@@ -56,6 +60,11 @@ export async function POST(request) {
       notes: {
         appointment_id: appointment_id || "",
         source: "clinic_dashboard",
+        patient_name: patient_name || "",
+        doctor_name: doctor_name || "",
+        reason: reason || "",
+        appointment_time: appointment_time || "",
+        appointment_date: appointment_date || ""
       },
       callback_url: "",
       callback_method: "",

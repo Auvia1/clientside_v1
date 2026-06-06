@@ -67,7 +67,8 @@ export async function POST(request) {
       return NextResponse.json({ success: false }, { status: 400 });
     }
 
-    const appointmentId = paymentLink.notes?.appointment_id;
+    const notes = paymentLink.notes || {};
+    const appointmentId = notes.appointment_id;
     const amountPaid = (payment?.amount || paymentLink.amount_paid || 0) / 100;
     const paymentId = payment?.id || "unknown";
 
@@ -93,6 +94,63 @@ export async function POST(request) {
 
       if (statusRes.ok) {
         console.log(`✅ Appointment ${appointmentId} confirmed after payment ${paymentId}`);
+
+        // ── Send WhatsApp Confirmation ──
+        const patientPhone = paymentLink.customer?.contact || "";
+        const patientName = notes.patient_name || "Patient";
+        const doctorName = notes.doctor_name || "Doctor";
+        const reason = notes.reason || "General Consultation";
+        const appointmentTime = notes.appointment_time || "";
+
+        if (patientPhone) {
+          const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+          const phoneId = process.env.WHATSAPP_PHONE_ID;
+
+          if (accessToken && phoneId) {
+            const digitsOnly = patientPhone.replace(/\D/g, "");
+            const formattedNumber = digitsOnly.length === 10 ? `91${digitsOnly}` : digitsOnly;
+            
+            const payload = {
+              messaging_product: "whatsapp",
+              to: formattedNumber,
+              type: "template",
+              template: {
+                name: "appointment_confirmation",
+                language: { code: "en" },
+                components: [
+                  {
+                    type: "body",
+                    parameters: [
+                      { type: "text", text: patientName },
+                      { type: "text", text: patientPhone },
+                      { type: "text", text: doctorName },
+                      { type: "text", text: reason },
+                      { type: "text", text: appointmentTime },
+                    ],
+                  },
+                ],
+              },
+            };
+
+            const metaRes = await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(payload),
+            });
+
+            if (metaRes.ok) {
+              console.log(`✅ WhatsApp confirmation sent to ${formattedNumber}`);
+            } else {
+              const errData = await metaRes.text();
+              console.error(`❌ Meta API error: ${errData}`);
+            }
+          } else {
+             console.error("⚠️ WHATSAPP_ACCESS_TOKEN or WHATSAPP_PHONE_ID missing in .env.local for webhook");
+          }
+        }
       } else {
         const errData = await statusRes.text();
         console.error(`❌ Failed to update appointment ${appointmentId}: ${statusRes.status} — ${errData}`);

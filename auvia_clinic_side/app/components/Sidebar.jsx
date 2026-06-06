@@ -228,6 +228,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { LayoutGrid, CalendarDays, PhoneCall, Menu, X, LogOut, TrendingUp, Users, Coins } from "lucide-react";
 import { Badge } from "./ui/badge";
+import BuyCreditsModal from "./BuyCreditsModal";
 
 const navItems = [
 	{ label: "Dashboard", href: "/dashboard", icon: LayoutGrid },
@@ -248,6 +249,7 @@ export default function Sidebar() {
 
 	const [open, setOpen] = useState(false);
 	const [mobileOpen, setMobileOpen] = useState(false);
+	const [buyCreditsOpen, setBuyCreditsOpen] = useState(false);
 
 	// ── Read user only on the client, after hydration ─────────────────────────
 	const [user, setUser] = useState(null);
@@ -302,7 +304,28 @@ export default function Sidebar() {
 				{navItems.map((item) => {
 					const Icon = item.icon;
 					const isActive = activePath === item.href;
-					return (
+					return item.href === "/credits" ? (
+						<button
+							key={item.href}
+							onClick={() => setBuyCreditsOpen(true)}
+							className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-sm font-medium transition-colors ${isActive
+									? "bg-emerald-50 text-emerald-700"
+									: "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+								}`}
+						>
+							<Icon size={18} className="shrink-0" />
+							<motion.span
+								animate={
+									doAnimate
+										? { display: open ? "inline-block" : "none", opacity: open ? 1 : 0 }
+										: {}
+								}
+								className="whitespace-pre text-sm text-left"
+							>
+								{item.label}
+							</motion.span>
+						</button>
+					) : (
 						<Link
 							key={item.href}
 							href={item.href}
@@ -409,7 +432,7 @@ export default function Sidebar() {
 		<>
 			{/* Desktop: animated collapsible */}
 			<motion.aside
-				className="hidden lg:flex h-full flex-col border-r border-slate-100 bg-white px-3 py-5 overflow-hidden"
+				className="hidden lg:flex h-screen sticky top-0 z-40 flex-col border-r border-slate-100 bg-white px-3 py-5 overflow-hidden"
 				animate={{ width: open ? 220 : 60 }}
 				transition={{ duration: 0.3, type: "spring", stiffness: 200, damping: 28 }}
 				onMouseEnter={() => setOpen(true)}
@@ -451,6 +474,8 @@ export default function Sidebar() {
 					)}
 				</AnimatePresence>
 			</div>
+
+			<BuyCreditsModal isOpen={buyCreditsOpen} onClose={() => setBuyCreditsOpen(false)} />
 		</>
 	);
 }

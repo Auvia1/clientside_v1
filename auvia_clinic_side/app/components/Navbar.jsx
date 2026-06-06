@@ -123,6 +123,9 @@ import { Input } from "./ui/input";
 import { Switch } from "./ui/switch";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { useCreditsBalance } from "../hooks/useCreditsBalance";
+import BuyCreditsModal from "./BuyCreditsModal";
+import { Coins } from "lucide-react";
 import {
   FiPhone,
   FiCalendar,
@@ -317,6 +320,9 @@ export default function Navbar({ activeMonitoring, onToggleMonitoring }) {
   const [profileOpen, setProfileOpen] = useState(false);
   const dropdownRef = useRef(null);
 
+  const { balance, loading } = useCreditsBalance();
+  const [buyCreditsOpen, setBuyCreditsOpen] = useState(false);
+
   useEffect(() => {
     function handleClickOutside(e) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
@@ -351,6 +357,15 @@ export default function Navbar({ activeMonitoring, onToggleMonitoring }) {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Available Credits */}
+          <div 
+            onClick={() => setBuyCreditsOpen(true)}
+            className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition-all hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 cursor-pointer"
+          >
+            <Coins className="h-4 w-4 text-emerald-500" />
+            {loading ? "..." : `${balance?.toFixed(0) || 0} Credits`}
+          </div>
+
           <div className="flex items-center gap-2 rounded-full border border-[#00A3AD] bg-white px-3 py-1 text-[11px] text-(--brand-secondary)">
             <span className="font-semibold text-[#00A3AD]">Activate Agent</span>
             <Switch checked={activeMonitoring} onCheckedChange={onToggleMonitoring} />
@@ -413,6 +428,7 @@ export default function Navbar({ activeMonitoring, onToggleMonitoring }) {
 
       {/* Profile modal — lives outside <header> to cover full viewport */}
       <ProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
+      <BuyCreditsModal isOpen={buyCreditsOpen} onClose={() => setBuyCreditsOpen(false)} />
     </>
   );
 }
