@@ -126,6 +126,9 @@ async function request(path, options = {}, retries = 3) {
       throw new Error(errorMsg);
     }
 
+    if (data.pagination) {
+      return data;
+    }
     return data.data;
   } catch (error) {
     // Log error but provide more context

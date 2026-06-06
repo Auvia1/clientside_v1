@@ -12,7 +12,7 @@ import Sidebar from "../components/Sidebar";
 export default function CreditsPage() {
   const [selectedPackage, setSelectedPackage] = useState(null);
   const [showBuyDialog, setShowBuyDialog] = useState(false);
-  const [transactionType, setTransactionType] = useState(null);
+  const [transactionType, setTransactionType] = useState("recharge");
   const [activeMonitoring, setActiveMonitoring] = useState(true);
   const [customCredits, setCustomCredits] = useState("");
 
@@ -174,21 +174,7 @@ export default function CreditsPage() {
               </div>
             )}
 
-            <div className="mb-4 flex gap-2">
-              {["all", "recharge", "deduction"].map((type) => (
-                <button
-                  key={type}
-                  onClick={() => setTransactionType(type === "all" ? null : type)}
-                  className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                    (type === "all" ? transactionType === null : transactionType === type)
-                      ? "bg-emerald-600 text-white"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  }`}
-                >
-                  {type === "all" ? "All Transactions" : type === "recharge" ? "Recharges" : "Deductions"}
-                </button>
-              ))}
-            </div>
+
 
             {txLoading ? (
               <div className="space-y-2">
