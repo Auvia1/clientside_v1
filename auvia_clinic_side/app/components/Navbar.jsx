@@ -363,7 +363,7 @@ export default function Navbar({ activeMonitoring, onToggleMonitoring }) {
             className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition-all hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 cursor-pointer"
           >
             <Coins className="h-4 w-4 text-emerald-500" />
-            {loading ? "..." : `${balance?.toFixed(0) || 0} Credits`}
+            {loading ? "..." : `${balance?.balance?.toFixed(0) || 0} Credits`}
           </div>
 
           <div className="flex items-center gap-2 rounded-full border border-[#00A3AD] bg-white px-3 py-1 text-[11px] text-(--brand-secondary)">
