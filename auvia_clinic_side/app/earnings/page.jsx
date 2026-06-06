@@ -152,6 +152,11 @@ export default function EarningsPage() {
   const [doctorWeeklyEarnings, setDoctorWeeklyEarnings] = useState(0);
   const [doctorLoading, setDoctorLoading] = useState(false);
   const [doctorStats, setDoctorStats] = useState([]);
+  const [currentTime, setCurrentTime] = useState("");
+
+  useEffect(() => {
+    setCurrentTime(new Date().toLocaleTimeString("en-IN"));
+  }, []);
 
   const getWeekBounds = (dateStr) => {
     const d = new Date(dateStr);
@@ -508,7 +513,7 @@ export default function EarningsPage() {
           {/* ── Footer ── */}
           <div className="flex items-center justify-between text-[11px] text-slate-400 pt-2">
             <span>© 2026 Auvia Health Systems · Revenue Analytics</span>
-            <span>Last updated {new Date().toLocaleTimeString("en-IN")}</span>
+            <span>Last updated {currentTime}</span>
           </div>
         </main>
       </div>

@@ -126,7 +126,7 @@ async function request(path, options = {}, retries = 3) {
       throw new Error(errorMsg);
     }
 
-    if (data.pagination) {
+    if (options.fullResponse) {
       return data;
     }
     return data.data;
@@ -303,7 +303,7 @@ export const callsApi = {
     if (filters.end_date) params.set("end_date", filters.end_date);
     if (filters.page) params.set("page", filters.page);
     if (filters.limit) params.set("limit", filters.limit);
-    return request(`/calls?${params}`);
+    return request(`/calls?${params}`, { fullResponse: true });
   },
 
   get: (id) => request(`/calls/${id}`),
@@ -502,7 +502,7 @@ export const creditsApi = {
     if (filters.end_date) params.set("end_date", filters.end_date);
     if (filters.page) params.set("page", filters.page);
     if (filters.limit) params.set("limit", filters.limit);
-    return request(`/credits/transactions/${clinicId}?${params}`);
+    return request(`/credits/transactions/${clinicId}?${params}`, { fullResponse: true });
   },
 
   getPayments: (clinicId, filters = {}) => {
