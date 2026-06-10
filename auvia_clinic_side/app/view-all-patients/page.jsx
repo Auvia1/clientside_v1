@@ -15,6 +15,7 @@ import {
   FiArrowLeft,
   FiChevronLeft,
   FiChevronRight,
+  FiRefreshCw,
 } from "react-icons/fi";
 import { patientsApi } from "../lib/api";
 import PatientDetailsDialog from "../components/PatientDetailsDialog";
@@ -172,11 +173,25 @@ export default function ViewAllPatientsPage() {
               </div>
 
               {/* Header */}
-              <div>
-                <h1 className="text-2xl font-semibold">All Patients</h1>
-                <p className="text-sm text-slate-500">
-                  Manage and view all patients in your clinic
-                </p>
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <h1 className="text-2xl font-semibold">All Patients</h1>
+                  <p className="text-sm text-slate-500">
+                    Manage and view all patients in your clinic
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={fetchAllPatients}
+                    disabled={loading}
+                    className="rounded-full px-4 gap-2 transition-transform duration-200 hover:-translate-y-0.5"
+                  >
+                    <FiRefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
+                    Refresh
+                  </Button>
+                </div>
               </div>
 
               {/* Search Card */}

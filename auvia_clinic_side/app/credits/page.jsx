@@ -319,13 +319,26 @@ export default function CreditsPage() {
                     transactions
                   </p>
                 </div>
-                <button
-                  onClick={() => setActiveTab("packages")}
-                  className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-md shadow-emerald-200 transition-all hover:bg-emerald-700 hover:shadow-lg hover:-translate-y-0.5"
-                >
-                  <Coins className="h-4 w-4" />
-                  Buy Credits
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => {
+                      fetchTransactions(1, 1000);
+                      if (activeTab === "payments") fetchPayments(1, 1000);
+                    }}
+                    disabled={txLoading || payLoading}
+                    className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 shadow-sm transition-all hover:bg-slate-50 hover:border-slate-300 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${(txLoading || payLoading) ? "animate-spin" : ""}`} />
+                    Refresh
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("packages")}
+                    className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-md shadow-emerald-200 transition-all hover:bg-emerald-700 hover:shadow-lg hover:-translate-y-0.5"
+                  >
+                    <Coins className="h-4 w-4" />
+                    Buy Credits
+                  </button>
+                </div>
               </div>
             </div>
 

@@ -22,6 +22,7 @@ import {
 	FiArrowUpRight,
 	FiArrowDownLeft,
 	FiAlertCircle,
+	FiRefreshCw,
 } from "react-icons/fi";
 
 function formatDuration(seconds) {
@@ -148,6 +149,16 @@ export default function CallsAndLogsPage() {
 							</p>
 						</div>
 						<div className="flex items-center gap-3">
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={() => fetchCalls(1)}
+								disabled={loading}
+								className="rounded-full px-4 gap-2 transition-transform duration-200 hover:-translate-y-0.5"
+							>
+								<FiRefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
+								Refresh
+							</Button>
 							<Button
 								variant="outline"
 								className="rounded-full px-4 transition-transform duration-200 hover:-translate-y-0.5"
