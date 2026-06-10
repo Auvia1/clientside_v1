@@ -7,13 +7,13 @@ function getClinicId() {
   return typeof window !== "undefined" ? localStorage.getItem("auvia_clinic_id") || "" : "";
 }
 
-export function useCreditsTransactions(type = null) {
-  const [transactions, setTransactions] = useState([]);
-  const [pagination, setPagination] = useState({ page: 1, limit: 1000, total: 0, totalPages: 0 });
-  const [loading, setLoading] = useState(true);
+export function usePaymentHistory() {
+  const [payments, setPayments] = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const fetchTransactions = useCallback(async (page = 1, limit = 1000) => {
+  const fetchPayments = useCallback(async (page = 1, limit = 20, filters = {}) => {
     const clinicId = getClinicId();
     if (!clinicId) {
       setError("Clinic ID not found");
@@ -23,33 +23,35 @@ export function useCreditsTransactions(type = null) {
     try {
       setError(null);
       setLoading(true);
-      const response = await creditsApi.getTransactions(clinicId, {
-        type,
+      const response = await creditsApi.getPayments(clinicId, {
+        ...filters,
         page,
         limit,
       });
 
-      // The request() function returns data.data, which contains { data: [...], pagination: {...} }
-      if (response && typeof response === 'object') {
-        setTransactions(response.data || []);
+      if (Array.isArray(response)) {
+        setPayments(response);
+        setPagination({ page, limit, total: response.length, totalPages: 1 });
+      } else if (response && typeof response === 'object') {
+        setPayments(response.data || response || []);
         setPagination(response.pagination || { page, limit, total: 0, totalPages: 0 });
       } else {
-        setTransactions([]);
+        setPayments([]);
         setPagination({ page, limit, total: 0, totalPages: 0 });
       }
     } catch (err) {
-      console.error("Failed to fetch credit transactions:", err);
+      console.error("Failed to fetch payment history:", err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [type]);
+  }, []);
 
   return {
-    transactions,
+    payments,
     pagination,
     loading,
     error,
-    fetchTransactions,
+    fetchPayments,
   };
 }

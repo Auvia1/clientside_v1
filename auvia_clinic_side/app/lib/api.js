@@ -299,6 +299,7 @@ export const callsApi = {
     const params = new URLSearchParams({ clinic_id: getClinicId() });
     if (filters.type) params.set("type", filters.type);
     if (filters.agent_type) params.set("agent_type", filters.agent_type);
+    if (filters.search) params.set("search", filters.search);
     if (filters.start_date) params.set("start_date", filters.start_date);
     if (filters.end_date) params.set("end_date", filters.end_date);
     if (filters.page) params.set("page", filters.page);

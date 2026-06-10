@@ -146,7 +146,7 @@ export default function DashboardPage() {
   const yesterday = new Date(new Date().getTime() - 24 * 60 * 60 * 1000).toISOString().split("T")[0];
   const todayDate = new Date().toISOString().split("T")[0];
 
-  const { isSlotsBased, loading: settingsLoading } = useClinicSettings();
+  const { clinicSettings, isSlotsBased, loading: settingsLoading } = useClinicSettings();
 
   const [activeMonitoring, setActiveMonitoring] = useState(true);
   // "all" | doctor.id
@@ -164,7 +164,7 @@ export default function DashboardPage() {
     useSchedule(targetDate);
 
   const loading = settingsLoading || scheduleLoading;
-  const displayTitle = isSlotsBased ? "Yesterday's Overview" : "Today's Overview";
+  const displayTitle = clinicSettings?.clinic?.name ? `Welcome to ${clinicSettings.clinic.name}` : (isSlotsBased ? "Yesterday's Overview" : "Today's Overview");
   const scheduleTitle = isSlotsBased ? "Yesterday's Schedule" : "Today's Schedule";
 
   // Filter by selected doctor id (or show all)

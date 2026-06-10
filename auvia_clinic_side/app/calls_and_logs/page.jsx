@@ -67,12 +67,13 @@ export default function CallsAndLogsPage() {
 	const [calls, setCalls] = useState([]);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState(null);
-	const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
+	const [pagination, setPagination] = useState({ page: 1, limit: 1000, total: 0, totalPages: 0 });
 	const { stats: overallStats } = useOverallCallStats();
 
 	const [filters, setFilters] = useState({
 		type: "",
 		agent_type: "",
+		search: "",
 		start_date: "",
 		end_date: "",
 	});
@@ -86,12 +87,12 @@ export default function CallsAndLogsPage() {
 			const response = await callsApi.list({
 				...filters,
 				page,
-				limit: 20,
+				limit: 1000,
 			});
 
 			console.log("Calls API Response:", response);
 			const callsData = extractArrayData(response);
-			const paginationData = response?.pagination || { page, limit: 20, total: 0, totalPages: 1 };
+			const paginationData = response?.pagination || { page, limit: 1000, total: 0, totalPages: 1 };
 
 			setCalls(callsData);
 			setPagination({
@@ -121,22 +122,13 @@ export default function CallsAndLogsPage() {
 		setFilters({
 			type: "",
 			agent_type: "",
+			search: "",
 			start_date: "",
 			end_date: "",
 		});
 	};
 
-	const handlePreviousPage = () => {
-		if (pagination.page > 1) {
-			fetchCalls(pagination.page - 1);
-		}
-	};
 
-	const handleNextPage = () => {
-		if (pagination.page < pagination.totalPages) {
-			fetchCalls(pagination.page + 1);
-		}
-	};
 
 	return (
 		<div className="min-h-screen bg-[#f5f8fb] text-slate-900">
@@ -175,6 +167,8 @@ export default function CallsAndLogsPage() {
 									<Input
 										className="h-9 rounded-full border-slate-200 pl-9 text-sm"
 										placeholder="Search logs, patients, or agents..."
+										value={filters.search}
+										onChange={(e) => handleFilterChange("search", e.target.value)}
 									/>
 								</div>
 								<Button
@@ -195,16 +189,7 @@ export default function CallsAndLogsPage() {
 									<option value={AGENT_TYPES.AI}>Agent: {AGENT_TYPE_LABELS[AGENT_TYPES.AI]}</option>
 									<option value={AGENT_TYPES.HUMAN}>Agent: {AGENT_TYPE_LABELS[AGENT_TYPES.HUMAN]}</option>
 								</select>
-								<select
-									value={filters.type}
-									onChange={(e) => handleFilterChange("type", e.target.value)}
-									className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs text-slate-600 outline-none"
-									disabled={loading}
-								>
-									<option value="">Call Type: All</option>
-									<option value={CALL_TYPES.INCOMING}>{CALL_TYPE_LABELS[CALL_TYPES.INCOMING]}</option>
-									<option value={CALL_TYPES.OUTGOING}>{CALL_TYPE_LABELS[CALL_TYPES.OUTGOING]}</option>
-								</select>
+
 								<Button
 									variant="ghost"
 									className="rounded-full text-xs"
@@ -308,30 +293,8 @@ export default function CallsAndLogsPage() {
 								)}
 								<div className="flex items-center justify-between pt-2 text-xs text-slate-500">
 									<span>
-										Showing {calls.length > 0 ? (pagination.page - 1) * pagination.limit + 1 : 0}-
-										{Math.min(pagination.page * pagination.limit, pagination.total)} of{" "}
-										{pagination.total} results
+										Showing {calls.length} of {pagination.total || calls.length} results
 									</span>
-									<div className="flex items-center gap-2">
-										<Button
-											variant="outline"
-											size="sm"
-											className="rounded-full px-3"
-											onClick={handlePreviousPage}
-											disabled={loading || pagination.page === 1}
-										>
-											Previous
-										</Button>
-										<Button
-											variant="outline"
-											size="sm"
-											className="rounded-full px-3"
-											onClick={handleNextPage}
-											disabled={loading || pagination.page >= pagination.totalPages}
-										>
-											Next
-										</Button>
-									</div>
 								</div>
 							</CardContent>
 						</Card>
