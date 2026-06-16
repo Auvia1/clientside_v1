@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Navbar from "../components/Navbar";
 import Sidebar from "../components/Sidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -69,7 +69,7 @@ export default function CallsAndLogsPage() {
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState(null);
 	const [pagination, setPagination] = useState({ page: 1, limit: 1000, total: 0, totalPages: 0 });
-	const { stats: overallStats } = useOverallCallStats();
+	const { stats: overallStats, refetch: refetchStats } = useOverallCallStats();
 
 	const [filters, setFilters] = useState({
 		type: "",
@@ -81,12 +81,20 @@ export default function CallsAndLogsPage() {
 
 	const [selectedDate] = useState(new Date());
 
-	const fetchCalls = async (page = 1) => {
-		setLoading(true);
-		setError(null);
+	// Keep a ref to the latest filters so the polling interval doesn't need to be recreated
+	const filtersRef = useRef(filters);
+	useEffect(() => {
+		filtersRef.current = filters;
+	}, [filters]);
+
+	const fetchCalls = useCallback(async (page = 1, { silent = false } = {}) => {
+		if (!silent) {
+			setLoading(true);
+			setError(null);
+		}
 		try {
 			const response = await callsApi.list({
-				...filters,
+				...filtersRef.current,
 				page,
 				limit: 1000,
 			});
@@ -104,16 +112,28 @@ export default function CallsAndLogsPage() {
 			});
 		} catch (err) {
 			console.error("Error fetching calls:", err);
-			setError(err.message);
-			setCalls([]);
+			if (!silent) {
+				setError(err.message);
+				setCalls([]);
+			}
 		} finally {
-			setLoading(false);
+			if (!silent) setLoading(false);
 		}
-	};
+	}, []);
 
+	// Fetch on mount and when filters change
 	useEffect(() => {
 		fetchCalls(1);
-	}, [filters, selectedDate]);
+	}, [filters, selectedDate, fetchCalls]);
+
+	// Auto-poll every 10 seconds to pick up new call logs
+	useEffect(() => {
+		const interval = setInterval(() => {
+			fetchCalls(1, { silent: true });
+			refetchStats();
+		}, 10000);
+		return () => clearInterval(interval);
+	}, [fetchCalls, refetchStats]);
 
 	const handleFilterChange = (key, value) => {
 		setFilters((prev) => ({ ...prev, [key]: value }));
@@ -166,7 +186,7 @@ export default function CallsAndLogsPage() {
 							>
 								<FiDownload className="mr-2" /> Export CSV
 							</Button>
-							<NewCallLogDialog onCallLogged={() => fetchCalls(1)} />
+							<NewCallLogDialog onCallLogged={() => { fetchCalls(1); refetchStats(); }} />
 						</div>
 					</div>
 
