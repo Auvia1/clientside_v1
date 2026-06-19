@@ -79,7 +79,87 @@ export default function CallsAndLogsPage() {
 		end_date: "",
 	});
 
-	const [selectedDate] = useState(new Date());
+	const [selectedDate, setSelectedDate] = useState(new Date());
+	const [dateLabel, setDateLabel] = useState("All Time");
+	const [calendarOpen, setCalendarOpen] = useState(false);
+	const calendarRef = useRef(null);
+
+	// Close the calendar dropdown when clicking outside
+	useEffect(() => {
+		function handleClickOutside(e) {
+			if (calendarRef.current && !calendarRef.current.contains(e.target)) {
+				setCalendarOpen(false);
+			}
+		}
+		document.addEventListener("mousedown", handleClickOutside);
+		return () => document.removeEventListener("mousedown", handleClickOutside);
+	}, []);
+
+	// Sync selectedDate / dateLabel into the start_date and end_date filters
+	const applyDatePreset = (preset) => {
+		const today = new Date();
+		today.setHours(0, 0, 0, 0);
+		let start = "";
+		let end = "";
+
+		switch (preset) {
+			case "today": {
+				start = today.toISOString().split("T")[0];
+				end = start;
+				setSelectedDate(today);
+				setDateLabel("Today");
+				break;
+			}
+			case "yesterday": {
+				const yesterday = new Date(today);
+				yesterday.setDate(yesterday.getDate() - 1);
+				start = yesterday.toISOString().split("T")[0];
+				end = start;
+				setSelectedDate(yesterday);
+				setDateLabel("Yesterday");
+				break;
+			}
+			case "last7": {
+				const weekAgo = new Date(today);
+				weekAgo.setDate(weekAgo.getDate() - 6);
+				start = weekAgo.toISOString().split("T")[0];
+				end = today.toISOString().split("T")[0];
+				setSelectedDate(today);
+				setDateLabel("Last 7 Days");
+				break;
+			}
+			case "last30": {
+				const monthAgo = new Date(today);
+				monthAgo.setDate(monthAgo.getDate() - 29);
+				start = monthAgo.toISOString().split("T")[0];
+				end = today.toISOString().split("T")[0];
+				setSelectedDate(today);
+				setDateLabel("Last 30 Days");
+				break;
+			}
+			case "all":
+			default: {
+				setSelectedDate(today);
+				setDateLabel("All Time");
+				break;
+			}
+		}
+		setFilters((prev) => ({ ...prev, start_date: start, end_date: end }));
+		setCalendarOpen(false);
+	};
+
+	const handleCustomDate = (dateStr) => {
+		if (!dateStr) return;
+		const d = new Date(dateStr + "T00:00:00");
+		setSelectedDate(d);
+		setDateLabel(formatDateRange(d));
+		setFilters((prev) => ({
+			...prev,
+			start_date: dateStr,
+			end_date: dateStr,
+		}));
+		setCalendarOpen(false);
+	};
 
 	// Keep a ref to the latest filters so the polling interval doesn't need to be recreated
 	const filtersRef = useRef(filters);
@@ -124,7 +204,7 @@ export default function CallsAndLogsPage() {
 	// Fetch on mount and when filters change
 	useEffect(() => {
 		fetchCalls(1);
-	}, [filters, selectedDate, fetchCalls]);
+	}, [filters, fetchCalls]);
 
 	// Auto-poll every 10 seconds to pick up new call logs
 	useEffect(() => {
@@ -147,6 +227,8 @@ export default function CallsAndLogsPage() {
 			start_date: "",
 			end_date: "",
 		});
+		setSelectedDate(new Date());
+		setDateLabel("All Time");
 	};
 
 
@@ -202,14 +284,56 @@ export default function CallsAndLogsPage() {
 										onChange={(e) => handleFilterChange("search", e.target.value)}
 									/>
 								</div>
-								<Button
-									variant="outline"
-									className="rounded-full text-xs"
-									disabled={loading}
-								>
-									<FiCalendar className="mr-2" /> {formatDateRange(selectedDate)}
-									<FiChevronDown className="ml-2" />
-								</Button>
+								<div className="relative" ref={calendarRef}>
+									<Button
+										variant="outline"
+										className="rounded-full text-xs"
+										disabled={loading}
+										onClick={() => setCalendarOpen((prev) => !prev)}
+									>
+										<FiCalendar className="mr-2" /> {dateLabel}
+										<FiChevronDown className={`ml-2 transition-transform duration-200 ${calendarOpen ? "rotate-180" : ""}`} />
+									</Button>
+									{calendarOpen && (
+										<div className="absolute left-0 top-full z-50 mt-2 w-64 rounded-xl border border-slate-200 bg-white p-3 shadow-lg animate-in fade-in slide-in-from-top-2 duration-200">
+											<div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+												Quick Select
+											</div>
+											<div className="flex flex-col gap-1">
+												{[
+													{ label: "Today", key: "today" },
+													{ label: "Yesterday", key: "yesterday" },
+													{ label: "Last 7 Days", key: "last7" },
+													{ label: "Last 30 Days", key: "last30" },
+													{ label: "All Time", key: "all" },
+												].map((preset) => (
+													<button
+														key={preset.key}
+														onClick={() => applyDatePreset(preset.key)}
+														className={`rounded-lg px-3 py-2 text-left text-xs transition-colors duration-150 ${
+															dateLabel === preset.label
+																? "bg-[var(--brand-primary)] text-white font-medium"
+																: "text-slate-600 hover:bg-slate-100"
+														}`}
+													>
+														{preset.label}
+													</button>
+												))}
+											</div>
+											<div className="my-2 border-t border-slate-100" />
+											<div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2">
+												Pick a Date
+											</div>
+											<input
+												type="date"
+												className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 outline-none focus:border-[var(--brand-primary)] focus:ring-1 focus:ring-[var(--brand-primary)]"
+												value={filters.start_date || ""}
+												onChange={(e) => handleCustomDate(e.target.value)}
+												max={new Date().toISOString().split("T")[0]}
+											/>
+										</div>
+									)}
+								</div>
 								<select
 									value={filters.agent_type}
 									onChange={(e) => handleFilterChange("agent_type", e.target.value)}
