@@ -231,7 +231,62 @@ export default function CallsAndLogsPage() {
 		setDateLabel("All Time");
 	};
 
+	const handleExportCSV = () => {
+		if (calls.length === 0) return;
 
+		const headers = ["ID", "Date & Time", "Type", "Caller", "Agent", "Duration", "AI Summary"];
+		const rows = calls.map((call) => {
+			let formattedTime = "N/A";
+			if (call.time) {
+				try {
+					formattedTime = new Date(call.time).toLocaleString();
+				} catch {
+					formattedTime = call.time;
+				}
+			}
+
+			const typeLabel = CALL_TYPE_LABELS[call.type] || call.type || "Unknown";
+			const agentLabel = AGENT_TYPE_LABELS[call.agent_type] || call.agent_type || "Unknown";
+			const durationStr = formatDuration(call.duration);
+
+			return [
+				call.id || "",
+				formattedTime,
+				typeLabel,
+				call.caller || "",
+				agentLabel,
+				durationStr,
+				call.ai_summary || "",
+			];
+		});
+
+		const escapeCellValue = (val) => {
+			if (val === null || val === undefined) return "";
+			let strVal = String(val);
+			strVal = strVal.replace(/"/g, '""');
+			if (strVal.includes(",") || strVal.includes("\n") || strVal.includes("\r") || strVal.includes('"')) {
+				return `"${strVal}"`;
+			}
+			return strVal;
+		};
+
+		const csvContent = [
+			headers.map(escapeCellValue).join(","),
+			...rows.map((row) => row.map(escapeCellValue).join(",")),
+		].join("\n");
+
+		const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+		const url = URL.createObjectURL(blob);
+		const link = document.createElement("a");
+		const dateStr = new Date().toISOString().split("T")[0];
+		
+		link.setAttribute("href", url);
+		link.setAttribute("download", `calls_export_${dateStr}.csv`);
+		link.style.visibility = "hidden";
+		document.body.appendChild(link);
+		link.click();
+		document.body.removeChild(link);
+	};
 
 	return (
 		<div className="min-h-screen bg-[#f5f8fb] text-slate-900">
@@ -265,6 +320,7 @@ export default function CallsAndLogsPage() {
 								variant="outline"
 								className="rounded-full px-4 transition-transform duration-200 hover:-translate-y-0.5"
 								disabled={loading || calls.length === 0}
+								onClick={handleExportCSV}
 							>
 								<FiDownload className="mr-2" /> Export CSV
 							</Button>
