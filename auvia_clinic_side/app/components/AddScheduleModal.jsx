@@ -282,6 +282,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Button } from "./ui/button";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { doctorsApi, clinicsApi, slotsApi } from "../lib/api";
+import { getLocalDateString } from "../lib/utils";
 
 const DAYS_OF_WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -324,7 +325,7 @@ export default function AddScheduleModal({ open, onOpenChange, doctorId, onAdded
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("17:00");
   const [slotDuration, setSlotDuration] = useState("30");
-  const [effectiveFrom, setEffectiveFrom] = useState(new Date().toISOString().split("T")[0]);
+  const [effectiveFrom, setEffectiveFrom] = useState(getLocalDateString());
   const [effectiveTo, setEffectiveTo] = useState("");
   const [maxAppointmentsPerSlot, setMaxAppointmentsPerSlot] = useState([]);
   const [slots, setSlots] = useState([]);
@@ -485,7 +486,7 @@ export default function AddScheduleModal({ open, onOpenChange, doctorId, onAdded
       setStartTime("09:00");
       setEndTime("17:00");
       setSlotDuration("30");
-      setEffectiveFrom(new Date().toISOString().split("T")[0]);
+      setEffectiveFrom(getLocalDateString());
       setEffectiveTo("");
       setMaxAppointmentsPerSlot([]);
       setSlots([]);

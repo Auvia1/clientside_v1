@@ -11,6 +11,7 @@ import { Input } from "../components/ui/input";
 import { TrendingUp, TrendingDown, DollarSign, Calendar, ChevronLeft, ChevronRight, X, Activity, Users, Star, RefreshCw, AlertCircle } from "lucide-react";
 import EarningsChart from "../components/EarningsChart";
 import { doctorsApi, paymentsApi } from "../lib/api";
+import { getLocalDateString } from "../lib/utils";
 
 const doctorEarningsData = {
   1: { id: 1, name: "Dr. Rajesh Kumar", weekly: [{ day: "Sun", earnings: 6500 }, { day: "Mon", earnings: 12000 }, { day: "Tue", earnings: 18500 }, { day: "Wed", earnings: 14500 }, { day: "Thu", earnings: 21000 }, { day: "Fri", earnings: 19500 }, { day: "Sat", earnings: 9200 }], appointments: 24 },
@@ -147,7 +148,7 @@ export default function EarningsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [selectedDate, setSelectedDate] = useState(() => getLocalDateString());
   const [doctorAppointmentCount, setDoctorAppointmentCount] = useState(0);
   const [doctorWeeklyEarnings, setDoctorWeeklyEarnings] = useState(0);
   const [doctorLoading, setDoctorLoading] = useState(false);
@@ -166,7 +167,7 @@ export default function EarningsPage() {
     const end = new Date(start);
     end.setDate(start.getDate() + 6);
     end.setHours(23, 59, 59, 999);
-    return { start, end, startStr: start.toISOString().split("T")[0], endStr: end.toISOString().split("T")[0] };
+    return { start, end, startStr: getLocalDateString(start), endStr: getLocalDateString(end) };
   };
 
   const weekOffset = (() => {

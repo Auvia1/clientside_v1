@@ -342,6 +342,7 @@ import { Loader2, Plus } from "lucide-react";
 import { Button } from "./ui/button";
 import { appointmentsApi, doctorsApi, whatsappApi } from "../lib/api";
 import { useDoctors, useSlots, useClinicSettings, useTokenSystemSlots } from "../hooks/useSchedule";
+import { getLocalDateString } from "../lib/utils";
 
 export default function NewAppointmentDialog({ onBooked, className }) {
   const [open, setOpen]             = useState(false);
@@ -359,7 +360,7 @@ export default function NewAppointmentDialog({ onBooked, className }) {
     patient_name:     "",
     patient_phone:    "",
     doctor_id:        "",
-    appointment_date: new Date().toISOString().split("T")[0],
+    appointment_date: getLocalDateString(),
     start_time:       "",
     end_time:         "",
     reason:           "",
@@ -487,7 +488,7 @@ export default function NewAppointmentDialog({ onBooked, className }) {
           patient_name:     "",
           patient_phone:    "",
           doctor_id:        "",
-          appointment_date: new Date().toISOString().split("T")[0],
+          appointment_date: getLocalDateString(),
           start_time:       "",
           end_time:         "",
           reason:           "",
@@ -607,7 +608,7 @@ export default function NewAppointmentDialog({ onBooked, className }) {
                 <input
                   type="date"
                   value={form.appointment_date}
-                  min={new Date().toISOString().split("T")[0]}
+                  min={getLocalDateString()}
                   onChange={(e) => set("appointment_date", e.target.value)}
                   className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"
                 />

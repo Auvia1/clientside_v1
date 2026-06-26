@@ -10,7 +10,7 @@ import { Input } from "../components/ui/input";
 import { callsApi } from "../lib/api";
 import NewCallLogDialog from "../components/NewCallLogDialog";
 import { useOverallCallStats } from "../hooks/useOverallCallStats";
-import { extractArrayData, calculatePercentage, calculatePercentageRounded } from "../lib/utils";
+import { extractArrayData, calculatePercentage, calculatePercentageRounded, getLocalDateString } from "../lib/utils";
 import { CALL_TYPES, AGENT_TYPES, CALL_TYPE_LABELS, AGENT_TYPE_LABELS } from "../constants/callTypes";
 import {
 	FiCalendar,
@@ -104,7 +104,7 @@ export default function CallsAndLogsPage() {
 
 		switch (preset) {
 			case "today": {
-				start = today.toISOString().split("T")[0];
+				start = getLocalDateString(today);
 				end = start;
 				setSelectedDate(today);
 				setDateLabel("Today");
@@ -113,7 +113,7 @@ export default function CallsAndLogsPage() {
 			case "yesterday": {
 				const yesterday = new Date(today);
 				yesterday.setDate(yesterday.getDate() - 1);
-				start = yesterday.toISOString().split("T")[0];
+				start = getLocalDateString(yesterday);
 				end = start;
 				setSelectedDate(yesterday);
 				setDateLabel("Yesterday");
@@ -122,8 +122,8 @@ export default function CallsAndLogsPage() {
 			case "last7": {
 				const weekAgo = new Date(today);
 				weekAgo.setDate(weekAgo.getDate() - 6);
-				start = weekAgo.toISOString().split("T")[0];
-				end = today.toISOString().split("T")[0];
+				start = getLocalDateString(weekAgo);
+				end = getLocalDateString(today);
 				setSelectedDate(today);
 				setDateLabel("Last 7 Days");
 				break;
@@ -131,8 +131,8 @@ export default function CallsAndLogsPage() {
 			case "last30": {
 				const monthAgo = new Date(today);
 				monthAgo.setDate(monthAgo.getDate() - 29);
-				start = monthAgo.toISOString().split("T")[0];
-				end = today.toISOString().split("T")[0];
+				start = getLocalDateString(monthAgo);
+				end = getLocalDateString(today);
 				setSelectedDate(today);
 				setDateLabel("Last 30 Days");
 				break;
@@ -278,7 +278,7 @@ export default function CallsAndLogsPage() {
 		const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
 		const url = URL.createObjectURL(blob);
 		const link = document.createElement("a");
-		const dateStr = new Date().toISOString().split("T")[0];
+		const dateStr = getLocalDateString();
 		
 		link.setAttribute("href", url);
 		link.setAttribute("download", `calls_export_${dateStr}.csv`);
@@ -385,7 +385,7 @@ export default function CallsAndLogsPage() {
 												className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 outline-none focus:border-[var(--brand-primary)] focus:ring-1 focus:ring-[var(--brand-primary)]"
 												value={filters.start_date || ""}
 												onChange={(e) => handleCustomDate(e.target.value)}
-												max={new Date().toISOString().split("T")[0]}
+												max={getLocalDateString()}
 											/>
 										</div>
 									)}

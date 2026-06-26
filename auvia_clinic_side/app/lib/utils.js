@@ -48,3 +48,37 @@ export function extractArrayData(response, defaultValue = []) {
 	const data = extractApiData(response, defaultValue);
 	return Array.isArray(data) ? data : defaultValue;
 }
+
+/**
+ * Format a Date object to local YYYY-MM-DD string
+ * @param {Date} date - The date to format
+ * @returns {string} Formatted local date string
+ */
+export function getLocalDateString(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Format a Date object as Weekday, DD Month YYYY (e.g. Saturday, 27 June 2026)
+ * @param {Date} date - The date to format
+ * @returns {string} Formatted date string
+ */
+export function formatLocalDateLong(date = new Date()) {
+  return date.toLocaleDateString("en-IN", {
+    weekday: "long", year: "numeric", month: "long", day: "numeric",
+  });
+}
+
+/**
+ * Format a Date object time as hh:mm am/pm (e.g. 05:07 am)
+ * @param {Date} date - The date to format
+ * @returns {string} Formatted time string
+ */
+export function formatLocalTime(date = new Date()) {
+  return date.toLocaleTimeString("en-IN", {
+    hour: "2-digit", minute: "2-digit",
+  });
+}

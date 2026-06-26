@@ -19,7 +19,7 @@ import { Tabs, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { useSchedule, useClinicSettings } from "../hooks/useSchedule";
 import { useOverallCallStats } from "../hooks/useOverallCallStats";
 import { doctorsApi } from "../lib/api";
-import { calculatePercentage } from "../lib/utils";
+import { calculatePercentage, getLocalDateString, formatLocalDateLong, formatLocalTime } from "../lib/utils";
 
 // ─── useDoctors ───────────────────────────────────────────────────────────────
 
@@ -143,8 +143,7 @@ function AppointmentRow({ appt, onStatusChange, isSlotsBased }) {
 // ─── Dashboard Page ───────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const yesterday = new Date(new Date().getTime() - 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-  const todayDate = new Date().toISOString().split("T")[0];
+  const todayDate = getLocalDateString(new Date());
 
   const { clinicSettings, isSlotsBased, loading: settingsLoading } = useClinicSettings();
 
@@ -158,14 +157,14 @@ export default function DashboardPage() {
   const doctors                                 = useDoctors();
   const { stats: overallCallStats, loading: overallLoading } = useOverallCallStats();
 
-  const targetDate = isSlotsBased ? yesterday : todayDate;
+  const targetDate = todayDate;
 
   const { schedule, loading: scheduleLoading, error, lastRefresh, refresh, updateAppointmentStatus } =
     useSchedule(targetDate);
 
   const loading = settingsLoading || scheduleLoading;
-  const displayTitle = clinicSettings?.clinic?.name ? `Welcome to ${clinicSettings.clinic.name}` : (isSlotsBased ? "Yesterday's Overview" : "Today's Overview");
-  const scheduleTitle = isSlotsBased ? "Yesterday's Schedule" : "Today's Schedule";
+  const displayTitle = clinicSettings?.clinic?.name ? `Welcome to ${clinicSettings.clinic.name}` : "Today's Overview";
+  const scheduleTitle = "Today's Schedule";
 
   // Filter by selected doctor id (or show all)
   const filteredSchedule = schedule.filter((appt) => {
@@ -176,13 +175,15 @@ export default function DashboardPage() {
   const visibleSchedule = showAll ? filteredSchedule : filteredSchedule.slice(0, 5);
 
   useEffect(() => {
-    const now = new Date();
-    setTodayFormatted(now.toLocaleDateString("en-IN", {
-      weekday: "long", year: "numeric", month: "long", day: "numeric",
-    }));
-    setTimeNow(now.toLocaleTimeString("en-IN", {
-      hour: "2-digit", minute: "2-digit",
-    }));
+    const updateDateTime = () => {
+      const now = new Date();
+      setTodayFormatted(formatLocalDateLong(now));
+      setTimeNow(formatLocalTime(now));
+    };
+
+    updateDateTime();
+    const interval = setInterval(updateDateTime, 10000); // update every 10 seconds
+    return () => clearInterval(interval);
   }, []);
 
   // Reset filter to "all" if the selected doctor is no longer in the list

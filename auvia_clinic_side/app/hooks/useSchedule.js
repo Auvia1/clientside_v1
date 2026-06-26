@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { appointmentsApi, doctorsApi, patientsApi, clinicsApi, slotsApi } from "../lib/api";
+import { getLocalDateString } from "../lib/utils";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -38,7 +39,7 @@ function normaliseAppointment(appt) {
 // ─── useSchedule ─────────────────────────────────────────────────────────────
 
 export function useSchedule(date) {
-  const today = date || new Date().toISOString().split("T")[0];
+  const today = date || getLocalDateString();
 
   const [schedule, setSchedule]       = useState([]);
   const [stats, setStats]             = useState(null);
