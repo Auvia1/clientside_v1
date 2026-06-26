@@ -185,25 +185,9 @@
 //               <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">
 //                 {error}
 //               </p>
-//             )}
-
-//             <Button
-//               type="submit"
-//               disabled={isDisabled || isSubmitting}
-//               className="h-11 w-full rounded-xl text-sm font-semibold"
-//             >
-//               {isSubmitting ? "Signing In..." : "Sign In"}
-//             </Button>
-//           </form>
-//         </div>
-//       </div>
-//     </main>
-//   );
-// }
-
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronDown,
@@ -213,17 +197,167 @@ import {
   Search,
   ShieldCheck,
   User,
+  Building2,
 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 
-const CLINICS = [
-  "Auvia Central Clinic",
-  "Auvia North Clinic",
-  "Auvia East Clinic",
-  "Auvia South Clinic",
-];
+/* ─────────────────────────────────────────────────────────────────────────────
+   ClinicSearchDropdown – fetches from /api/clinics, shows animated results
+───────────────────────────────────────────────────────────────────────────── */
+function ClinicSearchDropdown({ clinic, setClinic }) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(0);
+  const debounceRef = useRef(null);
+  const containerRef = useRef(null);
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Animate items in one by one when results arrive
+  useEffect(() => {
+    if (results.length === 0) {
+      setVisibleCount(0);
+      return;
+    }
+    setVisibleCount(0);
+    let i = 0;
+    const interval = setInterval(() => {
+      i += 1;
+      setVisibleCount(i);
+      if (i >= results.length) clearInterval(interval);
+    }, 60);
+    return () => clearInterval(interval);
+  }, [results]);
+
+  const fetchClinics = useCallback(async (searchQuery) => {
+    setIsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (searchQuery) params.set("search", searchQuery);
+      const res = await fetch(`/api/clinics?${params}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.data)) {
+        setResults(data.data);
+      } else if (Array.isArray(data)) {
+        setResults(data);
+      } else {
+        setResults([]);
+      }
+    } catch {
+      setResults([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const handleInputChange = (e) => {
+    const val = e.target.value;
+    setQuery(val);
+    setClinic(""); // clear confirmed selection while typing
+    setIsOpen(true);
+
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      fetchClinics(val);
+    }, 300);
+  };
+
+  const handleFocus = () => {
+    setIsOpen(true);
+    if (results.length === 0) fetchClinics(query);
+  };
+
+  const handleSelect = (name) => {
+    setClinic(name);
+    setQuery(name);
+    setIsOpen(false);
+  };
+
+  const displayValue = clinic || query;
+
+  return (
+    <div className="space-y-2" ref={containerRef}>
+      <label className="text-[11px] font-semibold text-slate-600">
+        Select Your Clinic
+      </label>
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 pointer-events-none z-10" />
+        <Input
+          placeholder="Search your clinic..."
+          value={displayValue}
+          onChange={handleInputChange}
+          onFocus={handleFocus}
+          autoComplete="off"
+          className="h-11 rounded-xl border-slate-200 pl-9 pr-8 text-sm"
+        />
+        <ChevronDown
+          className={`absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 pointer-events-none transition-transform duration-200 ${
+            isOpen ? "rotate-180" : ""
+          }`}
+        />
+
+        {/* Dropdown */}
+        {isOpen && (
+          <div
+            className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 rounded-xl border border-slate-200 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.12)] overflow-hidden"
+            style={{ maxHeight: "220px", overflowY: "auto" }}
+          >
+            {isLoading ? (
+              <div className="flex items-center gap-2 px-4 py-3 text-xs text-slate-400">
+                <span className="inline-block h-3 w-3 rounded-full border-2 border-slate-300 border-t-[var(--brand-primary)] animate-spin" />
+                Searching clinics…
+              </div>
+            ) : results.length === 0 ? (
+              <div className="px-4 py-3 text-xs text-slate-400">
+                No clinics found
+              </div>
+            ) : (
+              results.map((c, idx) => {
+                const name = typeof c === "string" ? c : c.name;
+                const isVisible = idx < visibleCount;
+                return (
+                  <button
+                    key={name}
+                    type="button"
+                    onMouseDown={() => handleSelect(name)}
+                    className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-slate-700 transition-colors hover:bg-slate-50 hover:text-[var(--brand-primary)]"
+                    style={{
+                      opacity: isVisible ? 1 : 0,
+                      transform: isVisible
+                        ? "translateY(0)"
+                        : "translateY(6px)",
+                      transition:
+                        "opacity 0.18s ease, transform 0.18s ease",
+                    }}
+                  >
+                    <Building2 className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                    {name}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   AuthenticationPage
+───────────────────────────────────────────────────────────────────────────── */
 export default function AuthenticationPage() {
   const router = useRouter();
 
@@ -316,28 +450,8 @@ export default function AuthenticationPage() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Clinic */}
-            <div className="space-y-2">
-              <label className="text-[11px] font-semibold text-slate-600">
-                Select Your Clinic
-              </label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <Input
-                  list="clinic-options"
-                  placeholder="Search your clinic..."
-                  value={clinic}
-                  onChange={(e) => setClinic(e.target.value)}
-                  className="h-11 rounded-xl border-slate-200 pl-9 pr-8 text-sm"
-                />
-                <ChevronDown className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <datalist id="clinic-options">
-                  {CLINICS.map((name) => (
-                    <option key={name} value={name} />
-                  ))}
-                </datalist>
-              </div>
-            </div>
+            {/* Clinic – live search dropdown */}
+            <ClinicSearchDropdown clinic={clinic} setClinic={setClinic} />
 
             {/* Username */}
             <div className="space-y-2">
