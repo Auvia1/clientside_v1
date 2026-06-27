@@ -451,7 +451,8 @@ export const whatsappApi = {
   }) => {
     const results = { payment_link: null, payment: null };
 
-    // 1️⃣ Create a real Razorpay Payment Link
+    // 1️⃣ Create a real Razorpay Payment Link (Commented out)
+    /*
     const rzpLink = await razorpayApi.createPaymentLink({
       amount: Number(consultation_fee),
       patient_name,
@@ -463,6 +464,7 @@ export const whatsappApi = {
       appointment_date
     });
     results.payment_link = rzpLink;
+    */
 
     // 2️⃣ Payment Link template
     //    Variables: {{1}} Hospital, {{2}} Name, {{3}} Time, {{4}} Date, {{5}} Fee
@@ -478,7 +480,7 @@ export const whatsappApi = {
         appointment_date,
         String(consultation_fee),
       ],
-      button_variable: rzpLink.short_id,
+      button_variable: "pay", // Placeholder string because the Meta template button requires a parameter
     });
 
     return results;
