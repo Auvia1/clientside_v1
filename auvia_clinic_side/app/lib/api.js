@@ -323,6 +323,8 @@ export const callsApi = {
 
   getStats: (filters = {}) => {
     const params = new URLSearchParams();
+    const clinicId = filters.clinic_id || getClinicId();
+    if (clinicId) params.set("clinic_id", clinicId);
     if (filters.start_date) params.set("start_date", filters.start_date);
     if (filters.end_date) params.set("end_date", filters.end_date);
     return request(`/calls/stats/summary?${params}`);
