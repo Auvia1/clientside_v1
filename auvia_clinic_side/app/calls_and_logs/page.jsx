@@ -492,7 +492,27 @@ export default function CallsAndLogsPage() {
 											</div>
 											<div className="flex items-center justify-end">
 												{call.recording ? (
-													<Button variant="outline" size="sm" className="h-8 w-8 rounded-full p-0">
+													<Button
+														variant="outline"
+														size="sm"
+														className="h-8 w-8 rounded-full p-0"
+														onClick={async () => {
+															try {
+																const blob = await callsApi.playRecording(call.id);
+
+																const url = URL.createObjectURL(blob);
+
+																const audio = new Audio(url);
+
+																audio.play();
+
+																audio.onended = () => URL.revokeObjectURL(url);
+															} catch (err) {
+																console.error(err);
+																alert("Unable to play recording.");
+															}
+														}}
+													>
 														<FiPlay className="text-slate-600" />
 													</Button>
 												) : (

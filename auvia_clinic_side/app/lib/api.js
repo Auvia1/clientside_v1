@@ -324,13 +324,35 @@ export const callsApi = {
   getStats: (filters = {}) => {
     const params = new URLSearchParams();
     const clinicId = filters.clinic_id || getClinicId();
+
     if (clinicId) params.set("clinic_id", clinicId);
     if (filters.start_date) params.set("start_date", filters.start_date);
     if (filters.end_date) params.set("end_date", filters.end_date);
+
     return request(`/calls/stats/summary?${params}`);
   },
-};
 
+  // 🔊 Play Recording
+  playRecording: async (callId) => {
+    const token = getToken();
+
+    const response = await fetch(
+      `${BASE_URL}/calls/proxy-recording/${callId}`,
+      {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || "Failed to fetch recording");
+    }
+
+    return await response.blob();
+  },
+};
 // ─── Clinics ──────────────────────────────────────────────────────────────────
 export const clinicsApi = {
   getSettings: (clinicId) =>
