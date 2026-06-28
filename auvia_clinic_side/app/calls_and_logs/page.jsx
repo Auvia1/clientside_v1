@@ -84,6 +84,7 @@ export default function CallsAndLogsPage() {
 	const [calendarOpen, setCalendarOpen] = useState(false);
 	const calendarRef = useRef(null);
 
+	const [playingCallId, setPlayingCallId] = useState(null);
 	const [currentAudioUrl, setCurrentAudioUrl] = useState(null);
 	const audioRef = useRef(null);
 
@@ -363,7 +364,7 @@ export default function CallsAndLogsPage() {
 										<FiChevronDown className={`ml-2 transition-transform duration-200 ${calendarOpen ? "rotate-180" : ""}`} />
 									</Button>
 									{calendarOpen && (
-										<div className="absolute left-0 top-full z-50 mt-2 w-64 rounded-xl border border-slate-200 bg-white p-3 shadow-lg animate-in fade-in slide-in-from-top-2 duration-200">
+										<div className="absolute left-0 top-full z-50 mt-2 w-full rounded-xl border border-slate-200 bg-white p-3 shadow-lg animate-in fade-in slide-in-from-top-2 duration-200">
 											<div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
 												Quick Select
 											</div>
@@ -437,7 +438,7 @@ export default function CallsAndLogsPage() {
 					<div className="grid gap-6 lg:grid-cols-[2.2fr_1fr]">
 						<Card className="border-slate-100 shadow-sm">
 							<CardHeader>
-								<div className="grid grid-cols-[90px_1.2fr_1fr_1fr_1.5fr_120px] text-[11px] uppercase tracking-[0.2em] text-slate-400">
+								<div className="grid grid-cols-[90px_1.2fr_1fr_1fr_1.5fr_280px] text-[11px] uppercase tracking-[0.2em] text-slate-400">
 									<span>Time & Type</span>
 									<span>Caller</span>
 									<span>Agent</span>
@@ -459,7 +460,7 @@ export default function CallsAndLogsPage() {
 									calls.map((call) => (
 										<div
 											key={call.id}
-											className={`grid grid-cols-[90px_1.2fr_1fr_1fr_1.5fr_120px] items-center gap-3 rounded-2xl border border-slate-100 px-4 py-3 text-sm transition-transform duration-200 hover:-translate-y-0.5 hover:shadow ${
+											className={`grid grid-cols-[90px_1.2fr_1fr_1fr_1.5fr_280px] items-center gap-3 rounded-2xl border border-slate-100 px-4 py-3 text-sm transition-transform duration-200 hover:-translate-y-0.5 hover:shadow ${
 												call.type === "incoming"
 													? "border-l-2 border-l-[var(--brand-primary)]"
 													: "border-l-2 border-l-slate-300"
@@ -502,36 +503,58 @@ export default function CallsAndLogsPage() {
 													Call Logged
 												</Badge>
 											</div>
-											<div className="flex items-center justify-end">
+											<div className="flex flex-col items-end gap-2 w-full">
 												{call.recording ? (
-													<Button
-														variant="outline"
-														size="sm"
-														className="h-8 w-8 rounded-full p-0"
-														onClick={async () => {
-															try {
-																const blob = await callsApi.playRecording(call.id);
+													<>
+														{playingCallId !== call.id ? (
+															<Button
+																variant="outline"
+																size="sm"
+																className="h-8 w-8 rounded-full p-0"
+																onClick={async () => {
+																	try {
+																		if (currentAudioUrl) {
+																			URL.revokeObjectURL(currentAudioUrl);
+																		}
 
-																if (currentAudioUrl) {
-																	URL.revokeObjectURL(currentAudioUrl);
-																}
+																		const blob = await callsApi.playRecording(call.id);
+																		const url = URL.createObjectURL(blob);
 
-																const url = URL.createObjectURL(blob);
-																setCurrentAudioUrl(url);
-
-																setTimeout(() => {
-																	audioRef.current?.play();
-																}, 100);
-															} catch (err) {
-																console.error(err);
-																alert("Unable to play recording.");
-															}
-														}}
-													>
-														<FiPlay className="text-slate-600" />
-													</Button>
+																		setPlayingCallId(call.id);
+																		setCurrentAudioUrl(url);
+																	} catch (err) {
+																		console.error(err);
+																		alert("Unable to play recording.");
+																	}
+																}}
+															>
+																<FiPlay className="text-slate-600" />
+															</Button>
+														) : (
+															<audio
+																key={currentAudioUrl}
+																ref={audioRef}
+																controls
+																autoPlay
+																src={currentAudioUrl}
+																className="w-full"
+																onEnded={() => {
+																	if (currentAudioUrl) {
+																		URL.revokeObjectURL(currentAudioUrl);
+																	}
+																	setPlayingCallId(null);
+																	setCurrentAudioUrl(null);
+																}}
+																onLoadedMetadata={(e) => {
+																	e.currentTarget.play().catch(() => {});
+																}}
+															/>
+														)}
+													</>
 												) : (
-													<span className="text-xs text-slate-400">No recording</span>
+													<span className="text-xs text-slate-400">
+														No recording
+													</span>
 												)}
 											</div>
 										</div>
@@ -600,20 +623,7 @@ export default function CallsAndLogsPage() {
 						</div>
 					</div>
 
-					{currentAudioUrl && (
-						<div className="mt-6 rounded-lg border bg-white p-4">
-							<p className="mb-2 text-sm font-medium text-slate-600">
-								Recording Player
-							</p>
-
-							<audio
-								ref={audioRef}
-								controls
-								src={currentAudioUrl}
-								className="w-full"
-							/>
-						</div>
-					)}
+					
 				</main>
 			</div>
 		</div>
