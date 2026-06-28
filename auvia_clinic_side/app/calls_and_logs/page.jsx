@@ -84,6 +84,9 @@ export default function CallsAndLogsPage() {
 	const [calendarOpen, setCalendarOpen] = useState(false);
 	const calendarRef = useRef(null);
 
+	const [currentAudioUrl, setCurrentAudioUrl] = useState(null);
+	const audioRef = useRef(null);
+
 	// Close the calendar dropdown when clicking outside
 	useEffect(() => {
 		function handleClickOutside(e) {
@@ -214,6 +217,15 @@ export default function CallsAndLogsPage() {
 		}, 10000);
 		return () => clearInterval(interval);
 	}, [fetchCalls, refetchStats]);
+
+	// Clean up the object URL when it changes or the component unmounts
+	useEffect(() => {
+		return () => {
+			if (currentAudioUrl) {
+				URL.revokeObjectURL(currentAudioUrl);
+			}
+		};
+	}, [currentAudioUrl]);
 
 	const handleFilterChange = (key, value) => {
 		setFilters((prev) => ({ ...prev, [key]: value }));
@@ -500,13 +512,16 @@ export default function CallsAndLogsPage() {
 															try {
 																const blob = await callsApi.playRecording(call.id);
 
+																if (currentAudioUrl) {
+																	URL.revokeObjectURL(currentAudioUrl);
+																}
+
 																const url = URL.createObjectURL(blob);
+																setCurrentAudioUrl(url);
 
-																const audio = new Audio(url);
-
-																audio.play();
-
-																audio.onended = () => URL.revokeObjectURL(url);
+																setTimeout(() => {
+																	audioRef.current?.play();
+																}, 100);
 															} catch (err) {
 																console.error(err);
 																alert("Unable to play recording.");
@@ -584,6 +599,21 @@ export default function CallsAndLogsPage() {
 							</Card>
 						</div>
 					</div>
+
+					{currentAudioUrl && (
+						<div className="mt-6 rounded-lg border bg-white p-4">
+							<p className="mb-2 text-sm font-medium text-slate-600">
+								Recording Player
+							</p>
+
+							<audio
+								ref={audioRef}
+								controls
+								src={currentAudioUrl}
+								className="w-full"
+							/>
+						</div>
+					)}
 				</main>
 			</div>
 		</div>
