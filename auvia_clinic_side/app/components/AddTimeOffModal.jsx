@@ -17,14 +17,10 @@ const REASONS = [
   "Other",
 ];
 
-function localToIST(dateTimeString) {
-  // Convert local datetime to ISO string, then add IST timezone offset
-  const date = new Date(dateTimeString);
-  // Add IST offset (+5:30)
-  const istDate = new Date(date.getTime() + 5.5 * 60 * 60 * 1000);
-  // Format as ISO string with +05:30 suffix
-  const iso = istDate.toISOString();
-  return iso.replace("Z", "+05:30");
+// Format a datetime-local input string (e.g. "2026-06-29T10:00")
+// as an explicit IST string to send to the backend.
+function formatAsIST(dateTimeString) {
+  return dateTimeString + ":00+05:30";
 }
 
 export default function AddTimeOffModal({ open, onOpenChange, doctorId, onAdded }) {
@@ -65,8 +61,8 @@ export default function AddTimeOffModal({ open, onOpenChange, doctorId, onAdded 
 
       await doctorsApi.createTimeOff(doctorId, {
         clinic_id: clinicId,
-        start_time: localToIST(startDateTime),
-        end_time: localToIST(endDateTime),
+        start_time: formatAsIST(startDateTime),
+        end_time: formatAsIST(endDateTime),
         reason: finalReason,
       });
 
@@ -111,7 +107,7 @@ export default function AddTimeOffModal({ open, onOpenChange, doctorId, onAdded 
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
               disabled={loading}
             />
-            <p className="text-xs text-slate-400 mt-1">Will be converted to IST (+05:30)</p>
+            <p className="text-xs text-slate-400 mt-1">India Standard Time (IST)</p>
           </div>
 
           <div>
@@ -125,7 +121,7 @@ export default function AddTimeOffModal({ open, onOpenChange, doctorId, onAdded 
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
               disabled={loading}
             />
-            <p className="text-xs text-slate-400 mt-1">Will be converted to IST (+05:30)</p>
+            <p className="text-xs text-slate-400 mt-1">India Standard Time (IST)</p>
           </div>
 
           <div>

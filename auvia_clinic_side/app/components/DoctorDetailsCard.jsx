@@ -41,18 +41,20 @@ function formatDateRange(startTime, endTime) {
   const start = new Date(startTime);
   const end = new Date(endTime);
 
-  const startStr = start.toLocaleDateString("en-IN", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-  const endStr = end.toLocaleDateString("en-IN", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  // Always display in IST regardless of browser timezone
+  const dateOptions = { timeZone: "Asia/Kolkata", month: "short", day: "numeric", year: "numeric" };
+  const timeOptions = { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: true };
 
-  return `${startStr} - ${endStr}`;
+  const startDateStr = start.toLocaleDateString("en-IN", dateOptions);
+  const endDateStr = end.toLocaleDateString("en-IN", dateOptions);
+  const startTimeStr = start.toLocaleTimeString("en-IN", timeOptions);
+  const endTimeStr = end.toLocaleTimeString("en-IN", timeOptions);
+
+  if (startDateStr === endDateStr) {
+    return `${startDateStr}, ${startTimeStr} \u2013 ${endTimeStr}`;
+  }
+
+  return `${startDateStr}, ${startTimeStr} \u2013 ${endDateStr}, ${endTimeStr}`;
 }
 
 // Helper: Generate all slot times from start_time, end_time, and slot_duration

@@ -457,7 +457,8 @@ export default function NewAppointmentDialog({ onBooked, className }) {
         source:            "manual",
       });
 
-      // ── Send WhatsApp confirmation + payment link (fire-and-forget) ──
+      // ── Send WhatsApp confirmation + payment link (Commented out) ──
+      /*
       const apptDate = new Date(form.appointment_date);
       const appointmentDateStr = apptDate.toLocaleDateString("en-IN", {
         weekday: "long", year: "numeric", month: "long", day: "numeric",
@@ -477,6 +478,7 @@ export default function NewAppointmentDialog({ onBooked, className }) {
       }).catch((err) => {
         console.error("⚠️ WhatsApp send failed (appointment still booked):", err);
       });
+      */
 
       setSuccess(true);
       onBooked?.();

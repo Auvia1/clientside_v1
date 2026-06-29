@@ -35,12 +35,26 @@ export default function EditTimeOffModal({ open, onOpenChange, timeOff, doctorId
   // Initialize form when timeOff changes
   useEffect(() => {
     if (timeOff) {
-      const startDate = new Date(timeOff.start_time);
-      const endDate = new Date(timeOff.end_time);
+      // Convert UTC timestamp from DB to IST "YYYY-MM-DDTHH:MM" for the datetime-local input.
+      // DB stores UTC (TIMESTAMPTZ). We add 5h30m to get IST, then format with UTC getters
+      // (since the offset has already been baked in).
+      const utcToISTInput = (isoString) => {
+        const utcMs = new Date(isoString).getTime();
+        const istMs = utcMs + 5.5 * 60 * 60 * 1000; // shift to IST
+        const istDate = new Date(istMs);
+        const pad = (n) => String(n).padStart(2, "0");
+        return (
+          istDate.getUTCFullYear() +
+          "-" + pad(istDate.getUTCMonth() + 1) +
+          "-" + pad(istDate.getUTCDate()) +
+          "T" + pad(istDate.getUTCHours()) +
+          ":" + pad(istDate.getUTCMinutes())
+        );
+      };
 
       setForm({
-        start_datetime: startDate.toISOString().slice(0, 16),
-        end_datetime: endDate.toISOString().slice(0, 16),
+        start_datetime: utcToISTInput(timeOff.start_time),
+        end_datetime: utcToISTInput(timeOff.end_time),
         reason: timeOff.reason || "",
       });
       setError(null);
@@ -57,13 +71,10 @@ export default function EditTimeOffModal({ open, onOpenChange, timeOff, doctorId
     setError(null);
 
     try {
-      // Convert local datetime to ISO format with IST timezone
-      const startDate = new Date(form.start_datetime);
-      const endDate = new Date(form.end_datetime);
-
+      // Send explicit IST string to the backend instead of converting to UTC.
       const payload = {
-        start_time: startDate.toISOString().replace("Z", "+05:30"),
-        end_time: endDate.toISOString().replace("Z", "+05:30"),
+        start_time: form.start_datetime + ":00+05:30",
+        end_time: form.end_datetime + ":00+05:30",
         reason: form.reason || null,
       };
 
@@ -105,7 +116,7 @@ export default function EditTimeOffModal({ open, onOpenChange, timeOff, doctorId
               onChange={(e) => set("start_datetime", e.target.value)}
               disabled={submitting}
             />
-            <p className="text-xs text-slate-400 mt-1">Will be saved as IST (+05:30)</p>
+            <p className="text-xs text-slate-400 mt-1">India Standard Time (IST)</p>
           </div>
 
           <div>
@@ -118,7 +129,7 @@ export default function EditTimeOffModal({ open, onOpenChange, timeOff, doctorId
               onChange={(e) => set("end_datetime", e.target.value)}
               disabled={submitting}
             />
-            <p className="text-xs text-slate-400 mt-1">Will be saved as IST (+05:30)</p>
+            <p className="text-xs text-slate-400 mt-1">India Standard Time (IST)</p>
           </div>
 
           <div>
