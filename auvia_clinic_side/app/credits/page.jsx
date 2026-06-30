@@ -980,7 +980,7 @@ export default function CreditsPage() {
                       },
                       {
                         q: "Can I get a refund?",
-                        a: "Contact our support team to request a refund for unused credits. Refunds are processed within 5-7 business days.",
+                        a: "Credit purchases are non-refundable once payment is completed. If you believe there was an incorrect charge or payment issue, please contact our support team.",
                       },
                     ].map((faq, i) => (
                       <div
