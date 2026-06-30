@@ -35,26 +35,22 @@ export default function EditTimeOffModal({ open, onOpenChange, timeOff, doctorId
   // Initialize form when timeOff changes
   useEffect(() => {
     if (timeOff) {
-      // Convert UTC timestamp from DB to IST "YYYY-MM-DDTHH:MM" for the datetime-local input.
-      // DB stores UTC (TIMESTAMPTZ). We add 5h30m to get IST, then format with UTC getters
-      // (since the offset has already been baked in).
-      const utcToISTInput = (isoString) => {
-        const utcMs = new Date(isoString).getTime();
-        const istMs = utcMs + 5.5 * 60 * 60 * 1000; // shift to IST
-        const istDate = new Date(istMs);
+      // Treat the database UTC timestamp as literal local time for the input.
+      const utcToInput = (isoString) => {
+        const utcDate = new Date(isoString);
         const pad = (n) => String(n).padStart(2, "0");
         return (
-          istDate.getUTCFullYear() +
-          "-" + pad(istDate.getUTCMonth() + 1) +
-          "-" + pad(istDate.getUTCDate()) +
-          "T" + pad(istDate.getUTCHours()) +
-          ":" + pad(istDate.getUTCMinutes())
+          utcDate.getUTCFullYear() +
+          "-" + pad(utcDate.getUTCMonth() + 1) +
+          "-" + pad(utcDate.getUTCDate()) +
+          "T" + pad(utcDate.getUTCHours()) +
+          ":" + pad(utcDate.getUTCMinutes())
         );
       };
 
       setForm({
-        start_datetime: utcToISTInput(timeOff.start_time),
-        end_datetime: utcToISTInput(timeOff.end_time),
+        start_datetime: utcToInput(timeOff.start_time),
+        end_datetime: utcToInput(timeOff.end_time),
         reason: timeOff.reason || "",
       });
       setError(null);
@@ -71,10 +67,10 @@ export default function EditTimeOffModal({ open, onOpenChange, timeOff, doctorId
     setError(null);
 
     try {
-      // Send explicit IST string to the backend instead of converting to UTC.
+      // Send explicit UTC string to the backend so it literally saves the time you see.
       const payload = {
-        start_time: form.start_datetime + ":00+05:30",
-        end_time: form.end_datetime + ":00+05:30",
+        start_time: form.start_datetime + ":00.000Z",
+        end_time: form.end_datetime + ":00.000Z",
         reason: form.reason || null,
       };
 

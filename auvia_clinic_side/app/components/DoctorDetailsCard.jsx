@@ -41,14 +41,26 @@ function formatDateRange(startTime, endTime) {
   const start = new Date(startTime);
   const end = new Date(endTime);
 
-  // Always display in IST regardless of browser timezone
-  const dateOptions = { timeZone: "Asia/Kolkata", month: "short", day: "numeric", year: "numeric" };
-  const timeOptions = { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: true };
+  // Treat the database UTC timestamp as literal local time for display.
+  const formatAsLiteral = (dateObj) => {
+    const pad = (n) => String(n).padStart(2, "0");
+    const h = dateObj.getUTCHours();
+    const period = h < 12 ? "AM" : "PM";
+    const hour = h % 12 || 12;
+    const timeStr = `${String(hour).padStart(2, "0")}:${pad(dateObj.getUTCMinutes())} ${period}`;
 
-  const startDateStr = start.toLocaleDateString("en-IN", dateOptions);
-  const endDateStr = end.toLocaleDateString("en-IN", dateOptions);
-  const startTimeStr = start.toLocaleTimeString("en-IN", timeOptions);
-  const endTimeStr = end.toLocaleTimeString("en-IN", timeOptions);
+    const dateStr = dateObj.toLocaleDateString("en-IN", {
+      timeZone: "UTC",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+
+    return { dateStr, timeStr };
+  };
+
+  const { dateStr: startDateStr, timeStr: startTimeStr } = formatAsLiteral(start);
+  const { dateStr: endDateStr, timeStr: endTimeStr } = formatAsLiteral(end);
 
   if (startDateStr === endDateStr) {
     return `${startDateStr}, ${startTimeStr} \u2013 ${endTimeStr}`;

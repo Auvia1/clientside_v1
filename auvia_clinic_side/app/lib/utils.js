@@ -13,8 +13,8 @@ export function cn(...inputs) {
  * @returns {string} Formatted percentage string
  */
 export function calculatePercentage(value, total, decimals = 1) {
-	if (!total || total === 0) return "0";
-	return ((value / total) * 100).toFixed(decimals);
+  if (!total || total === 0) return "0";
+  return ((value / total) * 100).toFixed(decimals);
 }
 
 /**
@@ -24,8 +24,8 @@ export function calculatePercentage(value, total, decimals = 1) {
  * @returns {number} Rounded percentage
  */
 export function calculatePercentageRounded(value, total) {
-	if (!total || total === 0) return 0;
-	return Math.round((value / total) * 100);
+  if (!total || total === 0) return 0;
+  return Math.round((value / total) * 100);
 }
 
 /**
@@ -35,7 +35,7 @@ export function calculatePercentageRounded(value, total) {
  * @returns {*} Extracted data or default value
  */
 export function extractApiData(response, defaultValue = null) {
-	return response?.data ?? response ?? defaultValue;
+  return response?.data ?? response ?? defaultValue;
 }
 
 /**
@@ -45,8 +45,8 @@ export function extractApiData(response, defaultValue = null) {
  * @returns {array} Extracted array or default value
  */
 export function extractArrayData(response, defaultValue = []) {
-	const data = extractApiData(response, defaultValue);
-	return Array.isArray(data) ? data : defaultValue;
+  const data = extractApiData(response, defaultValue);
+  return Array.isArray(data) ? data : defaultValue;
 }
 
 /**

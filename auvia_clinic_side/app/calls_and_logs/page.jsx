@@ -292,7 +292,7 @@ export default function CallsAndLogsPage() {
 		const url = URL.createObjectURL(blob);
 		const link = document.createElement("a");
 		const dateStr = getLocalDateString();
-		
+
 		link.setAttribute("href", url);
 		link.setAttribute("download", `calls_export_${dateStr}.csv`);
 		link.style.visibility = "hidden";
@@ -379,11 +379,10 @@ export default function CallsAndLogsPage() {
 													<button
 														key={preset.key}
 														onClick={() => applyDatePreset(preset.key)}
-														className={`rounded-lg px-3 py-2 text-left text-xs transition-colors duration-150 ${
-															dateLabel === preset.label
+														className={`rounded-lg px-3 py-2 text-left text-xs transition-colors duration-150 ${dateLabel === preset.label
 																? "bg-[var(--brand-primary)] text-white font-medium"
 																: "text-slate-600 hover:bg-slate-100"
-														}`}
+															}`}
 													>
 														{preset.label}
 													</button>
@@ -460,11 +459,10 @@ export default function CallsAndLogsPage() {
 									calls.map((call) => (
 										<div
 											key={call.id}
-											className={`grid grid-cols-[90px_1.2fr_1fr_1fr_1.5fr_280px] items-center gap-3 rounded-2xl border border-slate-100 px-4 py-3 text-sm transition-transform duration-200 hover:-translate-y-0.5 hover:shadow ${
-												call.type === "incoming"
+											className={`grid grid-cols-[90px_1.2fr_1fr_1fr_1.5fr_280px] items-center gap-3 rounded-2xl border border-slate-100 px-4 py-3 text-sm transition-transform duration-200 hover:-translate-y-0.5 hover:shadow ${call.type === "incoming"
 													? "border-l-2 border-l-[var(--brand-primary)]"
 													: "border-l-2 border-l-slate-300"
-											}`}
+												}`}
 										>
 											<div className="text-xs font-semibold">
 												{formatTime(call.time).split(" ")[0]}
@@ -546,7 +544,7 @@ export default function CallsAndLogsPage() {
 																	setCurrentAudioUrl(null);
 																}}
 																onLoadedMetadata={(e) => {
-																	e.currentTarget.play().catch(() => {});
+																	e.currentTarget.play().catch(() => { });
 																}}
 															/>
 														)}
@@ -623,7 +621,7 @@ export default function CallsAndLogsPage() {
 						</div>
 					</div>
 
-					
+
 				</main>
 			</div>
 		</div>

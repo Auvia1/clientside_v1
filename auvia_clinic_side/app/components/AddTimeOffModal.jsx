@@ -18,9 +18,9 @@ const REASONS = [
 ];
 
 // Format a datetime-local input string (e.g. "2026-06-29T10:00")
-// as an explicit IST string to send to the backend.
-function formatAsIST(dateTimeString) {
-  return dateTimeString + ":00+05:30";
+// as a UTC string so it's stored literally as entered in the DB.
+function formatAsUTC(dateTimeString) {
+  return dateTimeString + ":00.000Z";
 }
 
 export default function AddTimeOffModal({ open, onOpenChange, doctorId, onAdded }) {
@@ -61,8 +61,8 @@ export default function AddTimeOffModal({ open, onOpenChange, doctorId, onAdded 
 
       await doctorsApi.createTimeOff(doctorId, {
         clinic_id: clinicId,
-        start_time: formatAsIST(startDateTime),
-        end_time: formatAsIST(endDateTime),
+        start_time: formatAsUTC(startDateTime),
+        end_time: formatAsUTC(endDateTime),
         reason: finalReason,
       });
 
