@@ -328,6 +328,23 @@ export default function CallDetailsPage() {
 
               <Card className="border-slate-100 shadow-sm rounded-3xl">
                 <CardHeader className="pb-3">
+                  <CardTitle className="text-base font-semibold">AI Summary</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  {call.type === 'concurrency_error' ? (
+                    <p className="text-sm text-red-600 font-semibold leading-relaxed">
+                      Concurrency Error
+                    </p>
+                  ) : (
+                    <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
+                      {call.ai_summary || "No summary available for this call."}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="border-slate-100 shadow-sm rounded-3xl">
+                <CardHeader className="pb-3">
                   <CardTitle className="text-base font-semibold">Follow-up Notes</CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0">

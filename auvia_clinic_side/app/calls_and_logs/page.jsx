@@ -462,10 +462,13 @@ export default function CallsAndLogsPage() {
 										<div
 											key={call.id}
 											onClick={() => router.push(`/calls_and_logs/${call.id}`)}
-											className={`grid grid-cols-[90px_1.2fr_1fr_1fr_1.5fr_280px] items-center gap-3 rounded-2xl border border-slate-100 px-4 py-3 text-sm transition-transform duration-200 hover:-translate-y-0.5 hover:shadow cursor-pointer ${call.type === "incoming"
+											className={`grid grid-cols-[90px_1.2fr_1fr_1fr_1.5fr_280px] items-center gap-3 rounded-2xl border border-slate-100 px-4 py-3 text-sm transition-transform duration-200 hover:-translate-y-0.5 hover:shadow cursor-pointer ${
+												call.type === "concurrency_error"
+													? "border-l-2 border-l-red-500 bg-red-50"
+													: call.type === "incoming"
 													? "border-l-2 border-l-[var(--brand-primary)]"
 													: "border-l-2 border-l-slate-300"
-												}`}
+											}`}
 										>
 											<div className="text-xs font-semibold">
 												{formatTime(call.time).split(" ")[0]}
@@ -473,12 +476,14 @@ export default function CallsAndLogsPage() {
 													{formatTime(call.time).split(" ")[1]}
 												</span>
 												<div className="mt-1 flex items-center gap-1 text-[10px] text-slate-500">
-													{call.type === CALL_TYPES.INCOMING ? (
+													{call.type === 'concurrency_error' ? (
+														<FiAlertCircle className="text-red-500" />
+													) : call.type === CALL_TYPES.INCOMING ? (
 														<FiArrowDownLeft className="text-emerald-500" />
 													) : (
 														<FiArrowUpRight className="text-slate-500" />
 													)}
-													{CALL_TYPE_LABELS[call.type] || "Unknown"}
+													{call.type === 'concurrency_error' ? 'Error' : (CALL_TYPE_LABELS[call.type] || "Unknown")}
 												</div>
 											</div>
 											<div>
@@ -492,17 +497,21 @@ export default function CallsAndLogsPage() {
 											</div>
 											<div className="text-xs text-slate-500">{formatDuration(call.duration)}</div>
 											<div>
-												{call.ai_summary ? (
+												{call.type === 'concurrency_error' ? (
+													<p className="text-xs text-red-600 font-semibold">Concurrency Error</p>
+												) : call.ai_summary ? (
 													<p className="text-xs text-slate-500 line-clamp-2">"{call.ai_summary}"</p>
 												) : (
 													<p className="text-xs text-slate-400">No summary</p>
 												)}
-												<Badge
-													variant="info"
-													className="mt-2 text-[9px]"
-												>
-													Call Logged
-												</Badge>
+												{call.type !== 'concurrency_error' && (
+													<Badge
+														variant="info"
+														className="mt-2 text-[9px]"
+													>
+														Call Logged
+													</Badge>
+												)}
 											</div>
 											<div className="flex flex-col items-end gap-2 w-full">
 												{call.recording ? (
