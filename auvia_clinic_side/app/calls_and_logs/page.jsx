@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import Navbar from "../components/Navbar";
 import Sidebar from "../components/Sidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -64,6 +65,7 @@ function formatDateRange(date) {
 }
 
 export default function CallsAndLogsPage() {
+	const router = useRouter();
 	const [activeMonitoring, setActiveMonitoring] = useState(true);
 	const [calls, setCalls] = useState([]);
 	const [loading, setLoading] = useState(false);
@@ -459,7 +461,8 @@ export default function CallsAndLogsPage() {
 									calls.map((call) => (
 										<div
 											key={call.id}
-											className={`grid grid-cols-[90px_1.2fr_1fr_1fr_1.5fr_280px] items-center gap-3 rounded-2xl border border-slate-100 px-4 py-3 text-sm transition-transform duration-200 hover:-translate-y-0.5 hover:shadow ${call.type === "incoming"
+											onClick={() => router.push(`/calls_and_logs/${call.id}`)}
+											className={`grid grid-cols-[90px_1.2fr_1fr_1fr_1.5fr_280px] items-center gap-3 rounded-2xl border border-slate-100 px-4 py-3 text-sm transition-transform duration-200 hover:-translate-y-0.5 hover:shadow cursor-pointer ${call.type === "incoming"
 													? "border-l-2 border-l-[var(--brand-primary)]"
 													: "border-l-2 border-l-slate-300"
 												}`}
@@ -508,8 +511,9 @@ export default function CallsAndLogsPage() {
 															<Button
 																variant="outline"
 																size="sm"
-																className="h-8 w-8 rounded-full p-0"
-																onClick={async () => {
+																className="h-8 w-8 rounded-full p-0 relative z-10"
+																onClick={async (e) => {
+																	e.stopPropagation();
 																	try {
 																		if (currentAudioUrl) {
 																			URL.revokeObjectURL(currentAudioUrl);
@@ -529,24 +533,26 @@ export default function CallsAndLogsPage() {
 																<FiPlay className="text-slate-600" />
 															</Button>
 														) : (
-															<audio
-																key={currentAudioUrl}
-																ref={audioRef}
-																controls
-																autoPlay
-																src={currentAudioUrl}
-																className="w-full"
-																onEnded={() => {
-																	if (currentAudioUrl) {
-																		URL.revokeObjectURL(currentAudioUrl);
-																	}
-																	setPlayingCallId(null);
-																	setCurrentAudioUrl(null);
-																}}
-																onLoadedMetadata={(e) => {
-																	e.currentTarget.play().catch(() => { });
-																}}
-															/>
+															<div className="relative z-10 w-full" onClick={(e) => e.stopPropagation()}>
+																<audio
+																	key={currentAudioUrl}
+																	ref={audioRef}
+																	controls
+																	autoPlay
+																	src={currentAudioUrl}
+																	className="w-full h-8"
+																	onEnded={() => {
+																		if (currentAudioUrl) {
+																			URL.revokeObjectURL(currentAudioUrl);
+																		}
+																		setPlayingCallId(null);
+																		setCurrentAudioUrl(null);
+																	}}
+																	onLoadedMetadata={(e) => {
+																		e.currentTarget.play().catch(() => { });
+																	}}
+																/>
+															</div>
 														)}
 													</>
 												) : (
