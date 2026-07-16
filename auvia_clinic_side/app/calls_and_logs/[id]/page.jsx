@@ -108,7 +108,6 @@ export default function CallDetailsPage() {
   const callerPhone = isPhoneNumber ? call.caller : null; 
   const displayName = callerName || callerPhone || "Unknown Caller";
   // Map actual DB fields
-  const pendingAmount = "₹0.00"; // Can be replaced later when payments are tied to calls
   const creditsBilled = call.credits_used ? Number(call.credits_used).toFixed(2) : "0";
   
   // Format Transcript
@@ -223,13 +222,6 @@ export default function CallDetailsPage() {
 
                   <div className="mt-8 pt-6 border-t border-slate-100 space-y-6">
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                        PENDING AMOUNT
-                      </p>
-                      <p className="text-2xl font-semibold mt-1.5">{pendingAmount}</p>
-                    </div>
-
-                    <div className="pt-6 border-t border-slate-100">
                       <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
                         CALL DURATION
                       </p>
