@@ -25,6 +25,8 @@ export default function CallDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeMonitoring, setActiveMonitoring] = useState(true);
+  const [notes, setNotes] = useState("");
+  const [savingNotes, setSavingNotes] = useState(false);
   
   // Audio state
   const [isPlaying, setIsPlaying] = useState(false);
@@ -38,6 +40,7 @@ export default function CallDetailsPage() {
         const data = await callsApi.get(id);
         console.log("DEBUG: Call Data received from API:", data);
         setCall(data);
+        setNotes(data.notes || "");
       } catch (err) {
         console.error(err);
         setError("Failed to load call details.");
@@ -47,6 +50,24 @@ export default function CallDetailsPage() {
     }
     fetchCallDetails();
   }, [id]);
+
+  const handleSaveNotes = async () => {
+    try {
+      setSavingNotes(true);
+      const response = await callsApi.update(id, { notes });
+      if (response && response.success) {
+        setCall((prev) => ({ ...prev, notes: response.data.notes }));
+        alert("Notes saved successfully!");
+      } else {
+        alert("Failed to save notes.");
+      }
+    } catch (err) {
+      console.error("Error saving notes:", err);
+      alert("Failed to save notes.");
+    } finally {
+      setSavingNotes(false);
+    }
+  };
 
   useEffect(() => {
     return () => {
@@ -343,10 +364,16 @@ export default function CallDetailsPage() {
                   <textarea 
                     className="w-full h-[120px] border border-slate-200/80 rounded-2xl p-4 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)] focus:border-[var(--brand-primary)] resize-none text-slate-800 placeholder:text-slate-400"
                     placeholder="Add manual notes regarding this interaction..."
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
                   />
                   <div className="flex justify-end mt-4">
-                    <Button className="bg-[#0f172a] hover:bg-slate-800 text-white rounded-xl px-8 py-5 h-auto text-sm font-medium shadow-md transition-transform hover:-translate-y-0.5">
-                      Save Note
+                    <Button 
+                      className="bg-[#0f172a] hover:bg-slate-800 text-white rounded-xl px-8 py-5 h-auto text-sm font-medium shadow-md transition-transform hover:-translate-y-0.5"
+                      onClick={handleSaveNotes}
+                      disabled={savingNotes}
+                    >
+                      {savingNotes ? "Saving..." : "Save Note"}
                     </Button>
                   </div>
                 </CardContent>
