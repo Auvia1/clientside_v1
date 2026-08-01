@@ -8,7 +8,7 @@ import { callsApi } from "../../lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
-import { FiArrowLeft, FiPhone, FiPlay } from "react-icons/fi";
+import { FiArrowLeft, FiPhone, FiPlay, FiCalendar, FiClock } from "react-icons/fi";
 import { getLocalDateString } from "../../lib/utils";
 
 function formatDuration(seconds) {
@@ -16,6 +16,38 @@ function formatDuration(seconds) {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
   return `${mins}m ${secs}s`;
+}
+
+function formatTime(timestamp) {
+  if (!timestamp) return "N/A";
+  try {
+    const date = new Date(timestamp);
+    if (isNaN(date.getTime())) return "N/A";
+    return date.toLocaleTimeString("en-US", {
+      timeZone: "Asia/Kolkata",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  } catch {
+    return "N/A";
+  }
+}
+
+function formatDate(timestamp) {
+  if (!timestamp) return "N/A";
+  try {
+    const date = new Date(timestamp);
+    if (isNaN(date.getTime())) return "N/A";
+    return date.toLocaleDateString("en-US", {
+      timeZone: "Asia/Kolkata",
+      month: "short",
+      day: "2-digit",
+      year: "numeric",
+    });
+  } catch {
+    return "N/A";
+  }
 }
 
 export default function CallDetailsPage() {
@@ -237,6 +269,18 @@ export default function CallDetailsPage() {
                       <div className="flex items-center text-sm text-slate-500 mt-1.5">
                         <FiPhone className="mr-2 h-3.5 w-3.5" />
                         {callerPhone}
+                      </div>
+                    )}
+                    {call.time && (
+                      <div className="mt-3 pt-3 border-t border-slate-100/80 space-y-2">
+                        <div className="flex items-center text-xs text-slate-500">
+                          <FiCalendar className="mr-2 h-3.5 w-3.5 text-slate-400" />
+                          <span>{formatDate(call.time)}</span>
+                        </div>
+                        <div className="flex items-center text-xs text-slate-500">
+                          <FiClock className="mr-2 h-3.5 w-3.5 text-slate-400" />
+                          <span>{formatTime(call.time)} (IST)</span>
+                        </div>
                       </div>
                     )}
                   </div>
