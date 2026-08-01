@@ -55,8 +55,8 @@ export default function CallDetailsPage() {
     try {
       setSavingNotes(true);
       const response = await callsApi.update(id, { notes });
-      if (response && response.success) {
-        setCall((prev) => ({ ...prev, notes: response.data.notes }));
+      if (response) {
+        setCall((prev) => ({ ...prev, notes: response.notes }));
         alert("Notes saved successfully!");
       } else {
         alert("Failed to save notes.");
