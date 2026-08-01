@@ -39,12 +39,29 @@ function formatTime(timestamp) {
 		const date = new Date(timestamp);
 		if (isNaN(date.getTime())) return "N/A";
 		return date.toLocaleTimeString("en-US", {
+			timeZone: "Asia/Kolkata",
 			hour: "2-digit",
 			minute: "2-digit",
 			hour12: true,
 		});
 	} catch {
 		return "N/A";
+	}
+}
+
+function formatDate(timestamp) {
+	if (!timestamp) return "";
+	try {
+		const date = new Date(timestamp);
+		if (isNaN(date.getTime())) return "";
+		return date.toLocaleDateString("en-US", {
+			timeZone: "Asia/Kolkata",
+			month: "short",
+			day: "2-digit",
+			year: "numeric",
+		});
+	} catch {
+		return "";
 	}
 }
 
@@ -254,7 +271,7 @@ export default function CallsAndLogsPage() {
 			let formattedTime = "N/A";
 			if (call.time) {
 				try {
-					formattedTime = new Date(call.time).toLocaleString();
+					formattedTime = new Date(call.time).toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
 				} catch {
 					formattedTime = call.time;
 				}
@@ -471,9 +488,12 @@ export default function CallsAndLogsPage() {
 											}`}
 										>
 											<div className="text-xs font-semibold">
-												{formatTime(call.time).split(" ")[0]}
+												{formatTime(call.time).split(/\s+/)[0]}
 												<span className="block text-[10px] text-slate-400">
-													{formatTime(call.time).split(" ")[1]}
+													{formatTime(call.time).split(/\s+/)[1]}
+												</span>
+												<span className="block text-[9px] text-slate-400 font-normal mt-0.5 whitespace-nowrap">
+													{formatDate(call.time)}
 												</span>
 												<div className="mt-1 flex items-center gap-1 text-[10px] text-slate-500">
 													{call.type === 'concurrency_error' ? (
